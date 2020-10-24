@@ -65,9 +65,19 @@ import org.apache.ibatis.type.TypeHandler;
  */
 public class MapperBuilderAssistant extends BaseBuilder {
 
-  //每个助手都有1个namespace,resource,cache
-  private String currentNamespace;  //当前的命名空间
-  private String resource;        //dao的类路径
+  /**
+   *  当前mapper文件的命名空间（对应的dao的全限定符号）
+   * */
+  private String currentNamespace;
+
+  /**
+   *  当前的mapper资源路径
+   * */
+  private String resource;
+
+  /**
+   *  当前命名空间对应的dao对象所使用的缓存
+   * */
   private Cache currentCache;     // 当前的缓存
   private boolean unresolvedCacheRef;
 
@@ -134,6 +144,9 @@ public class MapperBuilderAssistant extends BaseBuilder {
     }
   }
 
+  /**
+   *  构建缓存对象
+   * */
   public Cache useNewCache(Class<? extends Cache> typeClass,
       Class<? extends Cache> evictionClass,
       Long flushInterval,
@@ -141,10 +154,10 @@ public class MapperBuilderAssistant extends BaseBuilder {
       boolean readWrite,
       boolean blocking,
       Properties props) {
-      //这里面又判断了一下是否为null就用默认值，和XMLMapperBuilder.cacheElement逻辑重复了
+    //1. 部分属性如果没有指定，则使用默认值
     typeClass = valueOrDefault(typeClass, PerpetualCache.class);
     evictionClass = valueOrDefault(evictionClass, LruCache.class);
-    //使用建造者模式，调用CacheBuilder类构建cache,id=currentNamespace
+    //2. 通过 CacheBuilder 构建mapper对应的缓存
     Cache cache = new CacheBuilder(currentNamespace)
         .implementation(typeClass)
         .addDecorator(evictionClass)
@@ -154,9 +167,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
         .blocking(blocking)
         .properties(props)
         .build();
-    //加入向configuration的caches变量中，添加该缓存
     configuration.addCache(cache);
-    //当前的缓存
     currentCache = cache;
     return cache;
   }

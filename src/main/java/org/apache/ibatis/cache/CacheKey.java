@@ -24,7 +24,7 @@ import java.util.List;
  * @author Clinton Begin
  */
 /**
- * 缓存key
+ *   主要用来定义需要缓存的对象的 cache key  的生成方式
  * 一般缓存框架的数据结构基本上都是 Key-Value 方式存储，
  * MyBatis 对于其 Key 的生成采取规则为：[mappedStementId + offset + limit + SQL + queryParams + environment]生成一个哈希码
  * MyBatis, 使用缓存key，唯一确定一个缓存项
@@ -32,21 +32,26 @@ import java.util.List;
 public class CacheKey implements Cloneable, Serializable {
 
   private static final long serialVersionUID = 1146682552656046210L;
-  //默认的缓存key对象，提供了一个空的CacheKey
+
+  /**
+   *  null 值使用的 缓存 key
+   * */
   public static final CacheKey NULL_CACHE_KEY = new NullCacheKey();
-  //默认的乘数，为什么选37，自己百度
+
+  /**
+   *  默认使用的乘数
+   * */
   private static final int DEFAULT_MULTIPLYER = 37;
-  //默认的hashCode,为什么选17，自己百度。
+
+  /**
+   *  默认使用的 hashCode
+   * */
   private static final int DEFAULT_HASHCODE = 17;
-  //乘数？
   private int multiplier;
-  //该缓存key,对应的hashCode
   private int hashcode;
 
   private long checksum;
-  //hashcode的更新次数
   private int count;
-  //存储用于生成cachekey过程中，使用到的对象
   private List<Object> updateList;
 
   public CacheKey() {

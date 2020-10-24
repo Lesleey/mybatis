@@ -40,29 +40,28 @@ import java.util.concurrent.locks.ReadWriteLock;
  */
 
 /**
- * 缓存
+ * 缓存接口，可以实现该接口提供我们自己的实现
  *
  */
 public interface Cache {
 
   /**
    * @return The identifier of this cache
+   *   获取该缓存对象的唯一标识，因为 mybatis 所使用的所有缓存都保存在 Configuration 的哈希表中，该标识用于快速获取当前
+   *   Mapper使用的缓存对象
    */
-    //取得ID
   String getId();
 
   /**
    * @param key Can be any object but usually it is a {@link CacheKey}
    * @param value The result of a select.
    */
-  //存入值
   void putObject(Object key, Object value);
 
   /**
    * @param key The key
    * @return The object stored in the cache.
    */
-  //获取值
   Object getObject(Object key);
 
   /**
@@ -71,13 +70,11 @@ public interface Cache {
    * @param key The key
    * @return The object that was removed
    */
-  //删除值
   Object removeObject(Object key);
 
   /**
    * Clears this cache instance
    */  
-  //清空
   void clear();
 
   /**
@@ -85,7 +82,6 @@ public interface Cache {
    * 
    * @return The number of elements stored in the cache (not its capacity).
    */
-  //取得大小
   int getSize();
   
   /** 
@@ -95,7 +91,6 @@ public interface Cache {
    * 
    * @return A ReadWriteLock 
    */
-  //取得读写锁, 从3.2.6开始没用了，要SPI自己实现锁
   ReadWriteLock getReadWriteLock();
 
 }

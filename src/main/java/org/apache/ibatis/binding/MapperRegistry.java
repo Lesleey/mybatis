@@ -35,21 +35,25 @@ import java.util.Set;
  * @author Lasse Voss
  */
 /**
- * 映射器注册机
+ * 映射器注册器
  *
  */
 public class MapperRegistry {
-  //当前配置
+  /**
+   *  全局配置类
+   * */
   private Configuration config;
-  //将已经添加的映射都放入HashMap，dao类对象，以及对应的mapperProxyFactory
+
+  /**
+   *  解析完成的 dao接口，以及对应的 MapperProxyFactory 映射代理工厂
+   * */
   private final Map<Class<?>, MapperProxyFactory<?>> knownMappers = new HashMap<Class<?>, MapperProxyFactory<?>>();
 
   public MapperRegistry(Configuration config) {
     this.config = config;
   }
 
-  @SuppressWarnings("unchecked")
-  //返回代理类
+
   public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
     final MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory<T>) knownMappers.get(type);
     if (mapperProxyFactory == null) {
@@ -67,23 +71,27 @@ public class MapperRegistry {
   }
 
 
+  /**
+   * @param type  dao接口对应的类对象
+   *    通过类对象进行注册
+   * */
   public <T> void addMapper(Class<T> type) {
-    //mapper必须是接口才会添加
+    //1. 类对象是接口才会被添加
     if (type.isInterface()) {
+      //2. 重复添加会报错
       if (hasMapper(type)) {
-        //如果重复添加了，报错
         throw new BindingException("Type " + type + " is already known to the MapperRegistry.");
       }
       boolean loadCompleted = false;
       try {
+        //3. 将当前的dao接口和对应的代理工厂放到 knowMappers 属性中
         knownMappers.put(type, new MapperProxyFactory<T>(type));
-        //通过该dao的类对象和当前的配置类创建MapperAnnotationBuilder，用来解析mapper文件。
+        //4. 解析 dao接口对应的 配置xml文件
         MapperAnnotationBuilder parser = new MapperAnnotationBuilder(config, type);
-        //解析mapper文件在这个方法中
         parser.parse();
         loadCompleted = true;
       } finally {
-        //如果加载过程中出现异常需要再将这个mapper从mybatis中删除.
+        //5. 如果加载过程中出现异常需要再将这个mapper从knowMappers中删除.
         if (!loadCompleted) {
           knownMappers.remove(type);
         }
@@ -99,8 +107,12 @@ public class MapperRegistry {
   }
 
 
+  /**
+   * @param packageName 包名
+   * @param superType  超类类型
+   *    通过 ResolverUtil工具类，扫描 packageName下，所有 superType的子类，并通过重载的方法进行注册
+   **/
   public void addMappers(String packageName, Class<?> superType) {
-    //查找包下所有是superType的类
     ResolverUtil<Class<?>> resolverUtil = new ResolverUtil<Class<?>>();
     resolverUtil.find(new ResolverUtil.IsA(superType), packageName);
     Set<Class<? extends Class<?>>> mapperSet = resolverUtil.getClasses();
@@ -109,7 +121,10 @@ public class MapperRegistry {
     }
   }
 
-  //查找包下所有类
+  /**
+   * @param packageName  包的路径
+   *   通过包名进行注册 Mapper接口和对应的xml文件
+   * */
   public void addMappers(String packageName) {
     addMappers(packageName, Object.class);
   }

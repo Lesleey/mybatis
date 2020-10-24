@@ -28,12 +28,12 @@ import org.apache.ibatis.logging.LogFactory;
  */
 /**
  * 日志缓存
- * 添加功能：取缓存时打印命中率
+ * 添加功能：取缓存对象时打印命中率
  *
  */
 public class LoggingCache implements Cache {
 
-  //用的mybatis自己的抽象Log
+
   private Log log;
   private Cache delegate;
   protected int requests = 0;

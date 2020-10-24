@@ -24,21 +24,29 @@ import java.sql.SQLException;
  * @author Clinton Begin
  */
 /**
- * 类型处理器
+ * 类型处理器: 设置预处理语句（PreparedStatement）中的参数或从结果集中取出一个值时， 都会用类型处理器将获取到的值以合适的方式转换成 Java 类型
  * 
  */
 public interface TypeHandler<T> {
 
-  //设置参数
+  /**
+   *  为预编译的sql语句设置参数
+   * */
   void setParameter(PreparedStatement ps, int i, T parameter, JdbcType jdbcType) throws SQLException;
 
-  //取得结果,供普通select用
+  /**
+   *  从结果集中返回指定的列名的值
+   * */
   T getResult(ResultSet rs, String columnName) throws SQLException;
 
-  //取得结果,供普通select用
+  /**
+   *  从结果集中返回指定列索引的值
+   * */
   T getResult(ResultSet rs, int columnIndex) throws SQLException;
 
-  //取得结果,供SP用
+  /**
+   *  TODO lesleey 从函数调用中返回指定列索引对应的值
+   * */
   T getResult(CallableStatement cs, int columnIndex) throws SQLException;
 
 }

@@ -43,10 +43,25 @@ import org.apache.ibatis.reflection.SystemMetaObject;
  * 
  */
 public class CacheBuilder {
-  private String id;  //一般为当前的namespace
-  private Class<? extends Cache> implementation;  //基础cache实现，最底层的缓存
-  private List<Class<? extends Cache>> decorators;  //装饰者缓存，用来添加要构建缓存的功能
-  private Integer size;   //缓存的一些基本属性。
+  /**
+   *  正在解析的mapper资源的namespace
+   * */
+  private String id;
+
+  /**
+   *  基础缓存的实现
+   * */
+  private Class<? extends Cache> implementation;
+
+  /**
+   *  装饰者缓存，使用装饰者模式增加一些功能，比如日志、换出策略等等
+   * */
+  private List<Class<? extends Cache>> decorators;
+
+  /**
+   *  缓存的基本属性： 可缓存的对象的数量、清空缓存的间隔、是否可读、自定义属性、是否阻塞
+   * */
+  private Integer size;
   private Long clearInterval;
   private boolean readWrite;
   private Properties properties;
@@ -95,13 +110,14 @@ public class CacheBuilder {
   }
 
   public Cache build() {
-    //设置默认基础缓存的类对象PerpetualCache，和默认装饰者LRUCache,逻辑重复了又。
+    //1. 设置基础的缓存对象的默认实现
     setDefaultImplementations();
-    //先根据id new一个base的cache(PerpetualCache),先获得implementation的构造函数，以id为参数，构建一个缓存实例。
+    //2. 初始化一个基本的缓存对象
     Cache cache = newBaseCacheInstance(implementation, id);
-    //使用metaOject设置额外属性。cache节点下的property节点
+    //3. 设置缓存对象的自定义属性
     setCacheProperties(cache);
     // issue #352, do not apply decorators to custom caches
+    //4. 如果使用默认的缓存对象，对该对象进行装饰
     if (PerpetualCache.class.equals(cache.getClass())) {
       for (Class<? extends Cache> decorator : decorators) {
           //装饰者模式一个个包装cache
@@ -111,15 +127,17 @@ public class CacheBuilder {
       }
       //最后附加上标准的装饰者
       cache = setStandardDecorators(cache);
+    //5. 如果该缓存对象不是 LoggingCache的子类，则进行添加日志功能
     } else if (!LoggingCache.class.isAssignableFrom(cache.getClass())) {
-        //如果LoggingCache不是custom缓存的父类或父接口，也就是custom缓存没有支持日志缓存，则包装成为LoggingCache。
       cache = new LoggingCache(cache);
     }
     return cache;
   }
 
+  /**
+   *  设置缓存构造者对象属性的一些默认值：包括初始的缓存对象、默认的装饰者缓存LRU对象
+   * */
   private void setDefaultImplementations() {
-      //又是一重保险，如果为null则设默认值,和XMLMapperBuilder.cacheElement以及MapperBuilderAssistant.useNewCache逻辑重复了
     if (implementation == null) {
       implementation = PerpetualCache.class;
       if (decorators.isEmpty()) {
@@ -128,7 +146,6 @@ public class CacheBuilder {
     }
   }
 
-  //最后附加上标准的装饰者
   private Cache setStandardDecorators(Cache cache) {
     try {
       MetaObject metaCache = SystemMetaObject.forObject(cache);
@@ -218,6 +235,11 @@ public class CacheBuilder {
     }
   }
 
+  /**
+   * @param base  被装饰者
+   * @param cacheClass 装饰者对象的类对象
+   *
+   * */
   private Cache newCacheDecoratorInstance(Class<? extends Cache> cacheClass, Cache base) {
     Constructor<? extends Cache> cacheConstructor = getCacheDecoratorConstructor(cacheClass);
     try {
@@ -227,6 +249,10 @@ public class CacheBuilder {
     }
   }
 
+  /**
+   * @param cacheClass  装饰者缓存对象
+   *  获取装饰者对象的构造器对象
+   * */
   private Constructor<? extends Cache> getCacheDecoratorConstructor(Class<? extends Cache> cacheClass) {
     try {
       return cacheClass.getConstructor(Cache.class);

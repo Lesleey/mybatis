@@ -24,14 +24,18 @@ import javax.sql.DataSource;
  * Should return an id to identify the type of this database.
  * That id can be used later on to build different queries for each database type
  * This mechanism enables supporting multiple vendors or versions
- * DB id 提供者
+ *
+ *    为每个数据库类型返回一个唯一标示，该标识必须唯一，这个机制支持多个版本和供应商
  * 
  * @author Eduardo Macarron
  */
 public interface DatabaseIdProvider {
 
+
   void setProperties(Properties p);
 
-  //根据数据源来得到一个DB id
+  /**
+   * 通过数据源获取唯一标识
+   * */
   String getDatabaseId(DataSource dataSource) throws SQLException;
 }

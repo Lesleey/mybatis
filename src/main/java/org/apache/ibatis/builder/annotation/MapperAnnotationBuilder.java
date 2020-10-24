@@ -141,15 +141,15 @@ public class MapperAnnotationBuilder {
     sqlProviderAnnotationTypes.add(UpdateProvider.class);
     sqlProviderAnnotationTypes.add(DeleteProvider.class);
   }
-  //eg type = demo.Mapper.RoleDao
   public void parse() {
+    //1. 使用类对象的简单名称作为资源名称
     String resource = type.toString();
-    //判断当前dao，也就是对应的mapper文件有没有被加载过
+    //2. 如果没有加载过进行加载
     if (!configuration.isResourceLoaded(resource)) {
-      //加载该mapper文件
+      //3. 解析dao接口对应的 xml 文件
       loadXmlResource();
-      //加载完成之后，将该源添加到configuraion的loadedResources集合中，表示该源已被加载
       configuration.addLoadedResource(resource);
+
       //设置当前的辅助类的namespace为type的名称
       assistant.setCurrentNamespace(type.getName());
       //通过CacheNamespace注解获取cache的一些属性，并且创建cache,添加到configuration对象中
@@ -188,9 +188,13 @@ public class MapperAnnotationBuilder {
     }
   }
 
+  /**
+   *  解析 dao对象对应的 mapper 文件
+   * */
   private void loadXmlResource() {
-    //通过该dao的类路经，获取对应的mapper路径，由此可知，当用package注册mapper文件时，他们的位置应该一致，而且名称前缀一样
+    //1. 如果该 xml 文件没有被解析过进行解析
     if (!configuration.isResourceLoaded("namespace:" + type.getName())) {
+      //2. 该dao接口对应的xml配置文件应该和该dao处于同一目录下，且名称相同
       String xmlResource = type.getName().replace('.', '/') + ".xml";
       InputStream inputStream = null;
       try {
@@ -199,7 +203,7 @@ public class MapperAnnotationBuilder {
         // ignore, resource is not required
       }
       if (inputStream != null) {
-        //解析mapper文件,需要借助XMLMapperBuilder，通过建造者模式建造configuration对象，和解析mybatis配置文件过程相同，大致是先通过conf文件，解析成document对象，然后......
+        //3. 解析 mapper文件
         XMLMapperBuilder xmlParser = new XMLMapperBuilder(inputStream, assistant.getConfiguration(), xmlResource, configuration.getSqlFragments(), type.getName());
         xmlParser.parse();
       }

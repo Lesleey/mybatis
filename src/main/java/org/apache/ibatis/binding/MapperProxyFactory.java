@@ -27,7 +27,7 @@ import org.apache.ibatis.session.SqlSession;
  * @author Lasse Voss
  */
 /**
- * 映射器代理工厂,通过mappe代理工厂，创建dao的代理类
+ * 映射器代理工厂： 通过该类构造 dao接口的代理类，为 dao接口中的方法提供实际的功能（执行配置文件中或者注解中指定的sql语句）
  */
 public class MapperProxyFactory<T> {
   //当前代理工厂代理的dao对象的类对象

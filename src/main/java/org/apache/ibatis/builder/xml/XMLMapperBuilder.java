@@ -57,16 +57,29 @@ import org.apache.ibatis.type.TypeHandler;
  * @author Clinton Begin
  */
 /**
- * XML映射构建器，建造者模式,继承BaseBuilder
+ * XML映射构建器，D继承BaseBuilder
  *
  */
 public class XMLMapperBuilder extends BaseBuilder {
 
+  /**
+   *  mapper文件对应的解析器
+   * */
   private XPathParser parser;
-  //映射器构建助手
+
+  /**
+   *  映射器构建助手
+   * */
   private MapperBuilderAssistant builderAssistant;
-  //用来存放sql片段的哈希表
+
+  /**
+   * 存放sql片段的哈希表: id 《=》 sql节点
+   * */
   private Map<String, XNode> sqlFragments;
+
+  /**
+   * dao接口对应的xml文件的资源路径
+   * */
   private String resource;
 
   @Deprecated
@@ -99,15 +112,17 @@ public class XMLMapperBuilder extends BaseBuilder {
     this.resource = resource;
   }
 
-  //解析
+  /**
+   *  解析 mapper 文件
+   * */
   public void parse() {
-    //如果没有加载过再加载，防止重复加载
+    //1. 如果没有加载过才会加载，避免重复加载
     if (!configuration.isResourceLoaded(resource)) {
-      //解析mapper节点
+      //2. 解析 mapper 节点
       configurationElement(parser.evalNode("/mapper"));
-      //标记一下，已经加载过了
+      //3. 记录当前加载完成的资源路径
       configuration.addLoadedResource(resource);
-      //绑定映射器到namespace
+      //4. 记录加载完成的dao对象，并绑定映射代理工厂
       bindMapperForNamespace();
     }
 
@@ -121,12 +136,10 @@ public class XMLMapperBuilder extends BaseBuilder {
     return sqlFragments.get(refid);
   }
 
-	//配置mapper元素
-//	<mapper namespace="org.ibatis.example.BlogMapper">
-//	  <select id="selectBlog" parameterType="int" resultType="Blog">
-//	    select * from Blog where id = #{id}
-//	  </select>
-//	</mapper>
+
+  /**
+   *  解析mapper文件中的<mapper>节点
+   * */
   private void configurationElement(XNode context) {
     try {
       //1.配置namespace
@@ -135,7 +148,7 @@ public class XMLMapperBuilder extends BaseBuilder {
         throw new BuilderException("Mapper's namespace cannot be empty");
       }
       builderAssistant.setCurrentNamespace(namespace);
-      //2.配置cache-ref
+      //2.解析cache-ref节点
       cacheRefElement(context.evalNode("cache-ref"));
       //3.配置cache
       cacheElement(context.evalNode("cache"));
@@ -239,29 +252,24 @@ public class XMLMapperBuilder extends BaseBuilder {
     }
   }
 
-  //3.配置cache，构建缓存的过程主要用到了建造者模式，和装饰模式
-//  <cache
-//  eviction="FIFO"
-//  flushInterval="60000"
-//  size="512"
-//  readOnly="true"/>
+  /**
+   *  https://mybatis.org/mybatis-3/zh/sqlmap-xml.html#cache
+   *  解析 <cache/> 节点
+   * */
   private void cacheElement(XNode context) throws Exception {
     if (context != null) {
-      //获取该cache节点的所有属性，然后调用builderAssistant类的方法创建缓存。
-      String type = context.getStringAttribute("type", "PERPETUAL");  //如果没有配置type属性，则默认使用PERPETUAL
+      //1. 获取缓存节点的相关属性：包括所使用的缓存对象别名、换出策略、刷新间隔、缓存对象的数量
+      String type = context.getStringAttribute("type", "PERPETUAL");
       Class<? extends Cache> typeClass = typeAliasRegistry.resolveAlias(type);
-      String eviction = context.getStringAttribute("eviction", "LRU");  //默认使用的换出策略为LRU
+      String eviction = context.getStringAttribute("eviction", "LRU");
       Class<? extends Cache> evictionClass = typeAliasRegistry.resolveAlias(eviction);
-      Long flushInterval = context.getLongAttribute("flushInterval");   //刷新间隔
-      Integer size = context.getIntAttribute("size");   //缓存对象的数量
-      boolean readWrite = !context.getBooleanAttribute("readOnly", false);  //是否只读
-      boolean blocking = context.getBooleanAttribute("blocking", false);  //是否使用阻塞缓存，默认为false
-      //读入额外的配置信息，易于第三方的缓存扩展,例:
-//    <cache type="com.domain.something.MyCustomCache">
-//      <property name="cacheFile" value="/tmp/my-custom-cache.tmp"/>
-//    </cache>
+      Long flushInterval = context.getLongAttribute("flushInterval");
+      Integer size = context.getIntAttribute("size");
+      boolean readWrite = !context.getBooleanAttribute("readOnly", false);
+      boolean blocking = context.getBooleanAttribute("blocking", false);
+      //2. 获取该节点内部的自定义属性
       Properties props = context.getChildrenAsProperties();
-      //调用builderAssistant.useNewCache
+      //3. 为该mapper构建缓存对象
       builderAssistant.useNewCache(typeClass, evictionClass, flushInterval, size, readWrite, blocking, props);
     }
   }
@@ -499,20 +507,27 @@ public class XMLMapperBuilder extends BaseBuilder {
     return null;
   }
 
+  /**
+   *  为dao对象绑定映射代理工厂，并将映射关系记录到映射注册器中
+   * */
   private void bindMapperForNamespace() {
+    //1. 获取当前 mapper 文件的命名空间
     String namespace = builderAssistant.getCurrentNamespace();
     if (namespace != null) {
+      //2. 获取命名空间（dao的全限定符号）对应的类对象
       Class<?> boundType = null;
       try {
         boundType = Resources.classForName(namespace);
       } catch (ClassNotFoundException e) {
         //ignore, bound type is not required
       }
+      //3. 记录解析完成的dao对象，并为对象该绑定映射代理工厂
       if (boundType != null) {
         if (!configuration.hasMapper(boundType)) {
           // Spring may not know the real resource name so we set a flag
           // to prevent loading again this resource from the mapper interface
           // look at MapperAnnotationBuilder#loadXmlResource
+
           configuration.addLoadedResource("namespace:" + namespace);
           configuration.addMapper(boundType);
         }

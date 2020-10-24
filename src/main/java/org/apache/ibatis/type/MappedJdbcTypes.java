@@ -22,10 +22,18 @@ import java.lang.annotation.Target;
 
 /**
  * @author Eduardo Macarron
+ *  表示该类型处理器处理的 jdbcType
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface MappedJdbcTypes {
+  /**
+   *  支持处理的 jdbcType
+   * */
   public JdbcType[] value();
+
+  /**
+   *  是否可处理 null 的 jdbcType
+   * */
   boolean includeNullJdbcType() default false;
 }

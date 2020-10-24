@@ -27,7 +27,6 @@ public final class NullCacheKey extends CacheKey {
   private static final long serialVersionUID = 3704229911977019465L;
 
   public NullCacheKey() {
-      //只有hash值和校验码为key?
     super();
   }
 

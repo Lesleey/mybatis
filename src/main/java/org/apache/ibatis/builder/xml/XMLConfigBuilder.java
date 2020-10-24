@@ -372,34 +372,27 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
-	//8.databaseIdProvider
-	//可以根据不同数据库执行不同的SQL，在Mybatis配置文件配置dataBaseIdProvider，然后配置属性，如果没有配置属性，则默认使用的是数据库产品名。
-    //然后在insert |delete | update | select 中指定dataBaiseId。 oracle
-//	<databaseIdProvider type="VENDOR">
-//	  <property name="SQL Server" value="sqlserver"/>
-//	  <property name="DB2" value="db2"/>        
-//	  <property name="Oracle" value="oracle" />
-//	</databaseIdProvider>
+  /**
+   *    可以根据环境中不同的数据库厂商执行不同的Sql语句（会执行sql节点中的 databaseId 属性为当前数据源厂商的名称或者别名），
+   *  有的数据库厂商的名称较长，可以通过内部的 <property />节点指定对应的别名，sql节点指定别名即可
+   * */
   private void databaseIdProviderElement(XNode context) throws Exception {
     DatabaseIdProvider databaseIdProvider = null;
     if (context != null) {
+      //1. 获取并初始化数据库提供者的实现
       String type = context.getStringAttribute("type");
-      // awful patch to keep backward compatibility
-      //与老版本兼容
       if ("VENDOR".equals(type)) {
           type = "DB_VENDOR";
       }
       Properties properties = context.getChildrenAsProperties();
-      //"DB_VENDOR"-->VendorDatabaseIdProvider
       databaseIdProvider = (DatabaseIdProvider) resolveClass(type).newInstance();
       databaseIdProvider.setProperties(properties);
     }
+    //2. 获取当前使用环境
     Environment environment = configuration.getEnvironment();
+    //3. 根据使用的数据源，通过指定的数据库提供者获取唯一标识，并赋值到全局配置类的
     if (environment != null && databaseIdProvider != null) {
-      //通过当前默认环境的dataSource,获得数据库产品名，然后根据产品名，获取“别名”，也就是你在<property>属性中，配置的值，
-      //eg: <property name="SQL Server" value="sqlserver"/> "SQL Server"产品名， "sqlserver":别名
       String databaseId = databaseIdProvider.getDatabaseId(environment.getDataSource());
-      //然后设置当前configuration的databaseId为你取的“别名”
       configuration.setDatabaseId(databaseId);
     }
   }
@@ -442,30 +435,25 @@ public class XMLConfigBuilder extends BaseBuilder {
     throw new BuilderException("Environment declaration requires a DataSourceFactory.");
   }
 
-	//9.类型处理器
-    // 类型处理器，主要是在预编译，和返回结果时，把java类型的值转化为jdbc类型的值，或者从jdbc类型的值转化为java类型的值使用的
-    //主要有两种配置方式，包名注册，或者直接通过类进行注册，都是通过使用重载的方法，向configuration对象的typeHandlerRegistry中注册类型处理器。
-  //两种，方式，一个直接指定handler类，和处理的javaType和jdbcType, 一种使用注解方式，MappedTypes和MappedJdbcTypes注解，各种组合
-//	<typeHandlers>
-//	  <typeHandler handler="org.ibatis.example.ExampleTypeHandler"/>
-//	</typeHandlers>
+  /**
+   *  类型处理器： 用于 数据库结果 《==》 javaType的值  包括根据给定的值设置sql语句中的参数、根据结果集中的结果转化成 java类的实例等等
+   *   包括两种注册方式：1. 包名， 2. 指定具体的 typeHandler 的别名或者全限定符
+   * */
   private void typeHandlerElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
-        //如果是package
+        //1. 通过包名注册
         if ("package".equals(child.getName())) {
           String typeHandlerPackage = child.getStringAttribute("name");
-          //（一）调用TypeHandlerRegistry.register，去包下找所有类
           typeHandlerRegistry.register(typeHandlerPackage);
+        //2. 指定类型处理器的别名（或全限定名）和处理的javaType和jdbcType
         } else {
-          //如果是typeHandler
           String javaTypeName = child.getStringAttribute("javaType");
           String jdbcTypeName = child.getStringAttribute("jdbcType");
           String handlerTypeName = child.getStringAttribute("handler");
           Class<?> javaTypeClass = resolveClass(javaTypeName);
           JdbcType jdbcType = resolveJdbcType(jdbcTypeName);
           Class<?> typeHandlerClass = resolveClass(handlerTypeName);
-          //（二）调用TypeHandlerRegistry.register(以下是3种不同的参数形式)
           if (javaTypeClass != null) {
             if (jdbcType == null) {
               typeHandlerRegistry.register(javaTypeClass, typeHandlerClass);
@@ -480,37 +468,37 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
-	//10.映射器
-    //mapper文件的扫描，包括四种方式，package, resource,url, class,其中后三种一个mapper节点只能存在一种方式
+  /**
+   *  mapper接口和对应xml文件的注册（mapperRegistry），包括四种方式：package, resource,url, class；其中后三种一个mapper节点只能存在一种方式
+   *   1. 通过package和class的方式进行注册，dao接口对应的mapper文件位置必须和接口同一目录下，且名称相同(通过dao接口位置获取mapper文件资源位置)
+   *   2. 通过resource和url的方式进行注册，直接指定的是mapper文件的位置（通过mapper文件得到dao的全限定符）
+   * */
   private void mapperElement(XNode parent) throws Exception {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
+        //1. 通过包名进行注册并解析
         if ("package".equals(child.getName())) {
-          //10.4自动扫描包下所有映射器
           String mapperPackage = child.getStringAttribute("name");
           configuration.addMappers(mapperPackage);
+        //2. 通过 resource | url | class 方式进行注册并解析
         } else {
           String resource = child.getStringAttribute("resource");
           String url = child.getStringAttribute("url");
           String mapperClass = child.getStringAttribute("class");
+          //2.2 通过 resource | url: 通过给定的地址获取流，构建 XmlMapperBuilder 对象对流进行解析
           if (resource != null && url == null && mapperClass == null) {
-            //10.1使用resource
             ErrorContext.instance().resource(resource);
             InputStream inputStream = Resources.getResourceAsStream(resource);
-            //通过该流创建一个XMLMapperBuilder，对象，通过建造者模式解析节点，然后把配置添加到configuration对象中
             XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
             mapperParser.parse();
           } else if (resource == null && url != null && mapperClass == null) {
-            //10.2使用绝对url路径
             ErrorContext.instance().resource(url);
             InputStream inputStream = Resources.getUrlAsStream(url);
-            //映射器比较复杂，调用XMLMapperBuilder
             XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
             mapperParser.parse();
+          //2.3 通过dao全限定符进行注册和解析
           } else if (resource == null && url == null && mapperClass != null) {
-            //10.3使用java类名
             Class<?> mapperInterface = Resources.classForName(mapperClass);
-            //直接把这个映射加入配置
             configuration.addMapper(mapperInterface);
           } else {
             throw new BuilderException("A mapper element may only specify a url, resource or class, but not more than one.");

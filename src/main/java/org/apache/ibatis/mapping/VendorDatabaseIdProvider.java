@@ -40,7 +40,7 @@ import org.apache.ibatis.logging.LogFactory;
  * @author Eduardo Macarron
  */
 /**
- * 厂商数据库Id提供者
+ *  该类提供了数据库产品名称作为 databaseId
  */
 public class VendorDatabaseIdProvider implements DatabaseIdProvider {
   
@@ -54,7 +54,7 @@ public class VendorDatabaseIdProvider implements DatabaseIdProvider {
       throw new NullPointerException("dataSource cannot be null");
     }
     try {
-    	//根据dataSource得到数据库名字
+      //1. 根据dataSource得到数据库名字
       return getDatabaseName(dataSource);
     } catch (Exception e) {
       log.error("Could not get a databaseId from dataSource", e);
@@ -68,27 +68,31 @@ public class VendorDatabaseIdProvider implements DatabaseIdProvider {
   }
 
   private String getDatabaseName(DataSource dataSource) throws SQLException {
-    //先得到数据库产品名
+    //1. 通过数据源获取厂商名称
     String productName = getDatabaseProductName(dataSource);
     if (this.properties != null) {
-    	//如果设置了缩写properties，则一个个比对返回匹配的缩写
+      //2. 通过厂商名称有没有指定的对应的别名
       for (Map.Entry<Object, Object> property : properties.entrySet()) {
         if (productName.contains((String) property.getKey())) {
           return (String) property.getValue();
         }
       }
-      // no match, return null
       return null;
     }
+    //3. 没有别名，默认返回数据库厂商名
     return productName;
   }
 
+  /**
+   *  通过数据源获取唯一标识
+   * */
   private String getDatabaseProductName(DataSource dataSource) throws SQLException {
     Connection con = null;
     try {
+      //1. 获取数据库连接
       con = dataSource.getConnection();
-      //核心就是DatabaseMetaData.getDatabaseProductName()得到数据库产品名字
       DatabaseMetaData metaData = con.getMetaData();
+      //2. 通过 connection 对象获取元信息
       return metaData.getDatabaseProductName();
     } finally {
       if (con != null) {

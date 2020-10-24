@@ -26,7 +26,8 @@ import java.util.Map;
 import org.apache.ibatis.io.Resources;
 
 /**
- * @author Clinton Begin
+ * @author Clinton Begin： 用于处理未知的 java类型或者jdbc类型之间的转换
+ *   每次设置参数或者获取结果集中的值时，都从类型处理注册器中获取合适的类型处理器进行工作
  */
 public class UnknownTypeHandler extends BaseTypeHandler<Object> {
 
@@ -68,6 +69,11 @@ public class UnknownTypeHandler extends BaseTypeHandler<Object> {
     return cs.getObject(columnIndex);
   }
 
+  /**
+   * @param parameter  预编译所使用的参数对象
+   * @param jdbcType  jdbc类型
+   *    根据参数对象的类型和sql的jdbc类型获取对应的类型处理器
+   * */
   private TypeHandler<? extends Object> resolveTypeHandler(Object parameter, JdbcType jdbcType) {
     TypeHandler<? extends Object> handler;
     if (parameter == null) {
@@ -82,6 +88,11 @@ public class UnknownTypeHandler extends BaseTypeHandler<Object> {
     return handler;
   }
 
+  /**
+   * @param rs  结果集
+   * @param column  列名
+   *     获取结果集中指定列名对应类型处理器
+   * */
   private TypeHandler<?> resolveTypeHandler(ResultSet rs, String column) {
     try {
       Map<String,Integer> columnIndexLookup;
@@ -106,6 +117,9 @@ public class UnknownTypeHandler extends BaseTypeHandler<Object> {
     }
   }
 
+  /**
+   *  通过该结果集中指定列索引的元数据获取对应的类型处理器
+   * */
   private TypeHandler<?> resolveTypeHandler(ResultSetMetaData rsmd, Integer columnIndex) throws SQLException {
     TypeHandler<?> handler = null;
     JdbcType jdbcType = safeGetJdbcTypeForColumn(rsmd, columnIndex);
@@ -120,6 +134,9 @@ public class UnknownTypeHandler extends BaseTypeHandler<Object> {
     return handler;
   }
 
+  /**
+   *  返回指定列索引对应的  Sql类型
+   * */
   private JdbcType safeGetJdbcTypeForColumn(ResultSetMetaData rsmd, Integer columnIndex) {
     try {
       return JdbcType.forCode(rsmd.getColumnType(columnIndex));
@@ -128,6 +145,9 @@ public class UnknownTypeHandler extends BaseTypeHandler<Object> {
     }
   }
 
+  /**
+   *  根据结果集元数据指定列索引返回对应的 java语言的类对象，如果不存在返回 null
+   * */
   private Class<?> safeGetClassForColumn(ResultSetMetaData rsmd, Integer columnIndex) {
     try {
       return Resources.classForName(rsmd.getColumnClassName(columnIndex));

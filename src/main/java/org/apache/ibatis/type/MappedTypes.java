@@ -22,6 +22,8 @@ import java.lang.annotation.Target;
 
 /**
  * @author Eduardo Macarron
+ *
+ *   通过注解方法标志该类型处理器所能处理的 javaType
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

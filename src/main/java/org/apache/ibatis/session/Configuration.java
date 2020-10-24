@@ -161,13 +161,19 @@ public class Configuration {
    *  对象包装工厂，用于获取包装器，操作对象（赋值，获取值等等）
    * */
   protected ObjectWrapperFactory objectWrapperFactory = new DefaultObjectWrapperFactory();
-  //映射注册器
+
+  /**
+   *  映射注册器，保存dao对象和对应的映射代理工厂的关联
+   * */
   protected MapperRegistry mapperRegistry = new MapperRegistry(this);
 
   //默认禁用延迟加载
   protected boolean lazyLoadingEnabled = false;
   protected ProxyFactory proxyFactory = new JavassistProxyFactory(); // #224 Using internal Javassist instead of OGNL
 
+  /**
+   *   当前环境所有使用的 databaseId
+   * */
   protected String databaseId;
   /**
    * Configuration factory class.
@@ -178,21 +184,33 @@ public class Configuration {
   protected Class<?> configurationFactory;
 
   protected final InterceptorChain interceptorChain = new InterceptorChain();
-  //类型处理器注册机
+
+  /**
+   *  类型处理注册器：存储所有的类型处理器
+   * */
   protected final TypeHandlerRegistry typeHandlerRegistry = new TypeHandlerRegistry();
-  //类型别名注册机
+
+  /**
+   *  类型别名注册器 ： 存储java类型和对应的别名
+   * */
   protected final TypeAliasRegistry typeAliasRegistry = new TypeAliasRegistry();
   protected final LanguageDriverRegistry languageRegistry = new LanguageDriverRegistry();
 
   //映射的语句,存在Map里
   protected final Map<String, MappedStatement> mappedStatements = new StrictMap<MappedStatement>("Mapped Statements collection");
-  //缓存,存在Map里
+
+  /**
+   *  key: mapper文件的命名空间 value: 所使用的缓存对象
+   * */
   protected final Map<String, Cache> caches = new StrictMap<Cache>("Caches collection");
   //结果映射,存在Map里
   protected final Map<String, ResultMap> resultMaps = new StrictMap<ResultMap>("Result Maps collection");
   protected final Map<String, ParameterMap> parameterMaps = new StrictMap<ParameterMap>("Parameter Maps collection");
   protected final Map<String, KeyGenerator> keyGenerators = new StrictMap<KeyGenerator>("Key Generators collection");
 
+  /**
+   *  加载完成的资源名称
+   * */
   protected final Set<String> loadedResources = new HashSet<String>();
   protected final Map<String, XNode> sqlFragments = new StrictMap<XNode>("XML fragments parsed from previous mappers");
 
