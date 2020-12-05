@@ -41,9 +41,12 @@ import org.apache.ibatis.io.Resources;
 public class UnpooledDataSource implements DataSource {
   
   private ClassLoader driverClassLoader;
-  //作为可选项,你可以传递数据库驱动的属性。要这样做,属性的前缀是以“driver.”开 头的,例如
-  //driver.encoding=UTF8
+  //作为可选项,你可以传递数据库驱动的属性。要这样做,属性的前缀是以“driver.”开 头的,例如 driver.encoding=UTF8
   private Properties driverProperties;
+
+  /**
+   *  key: 驱动类的全限定名称， value： 数据库驱动类的实例
+   * */
   private static Map<String, Driver> registeredDrivers = new ConcurrentHashMap<String, Driver>();
 
   private String driver;
@@ -201,16 +204,23 @@ public class UnpooledDataSource implements DataSource {
     return doGetConnection(props);
   }
 
+  /**
+   *  通过属性键值对获取数据库连接
+   * */
   private Connection doGetConnection(Properties properties) throws SQLException {
+    //1. 注册驱动
     initializeDriver();
-    //属性的前缀是以“driver.”开 头的,它 是 通 过 DriverManager.getConnection(url,driverProperties)方法传递给数据库驱动
+    //2. 获取连接
     Connection connection = DriverManager.getConnection(url, properties);
+    //3. 配置自动提交和隔离级别
     configureConnection(connection);
     return connection;
   }
 
+  /**
+   *  初始化驱动类，向 DriverManager 注册自己的实例
+   * */
   private synchronized void initializeDriver() throws SQLException {
-	  //这里便是大家熟悉的初学JDBC时的那几句话了 Class.forName newInstance()
     if (!registeredDrivers.containsKey(driver)) {
       Class<?> driverType;
       try {
@@ -240,9 +250,7 @@ public class UnpooledDataSource implements DataSource {
   }
 
   /**
-   * 驱动代理
-   * 不是很懂
-   *
+   * 驱动代理 todo lesleey 为什么增加一个驱动代理
    */
   private static class DriverProxy implements Driver {
     private Driver driver;
@@ -251,11 +259,17 @@ public class UnpooledDataSource implements DataSource {
       this.driver = d;
     }
 
+    /**
+     * @return 判断给定的 URL 是否可以能和数据库成功建立连接
+     * */
     @Override
     public boolean acceptsURL(String u) throws SQLException {
       return this.driver.acceptsURL(u);
     }
 
+    /**
+     *  当试图使用 DriverManager 与数据库建立连接时，会调用该方法
+     * */
     @Override
     public Connection connect(String u, Properties p) throws SQLException {
       return this.driver.connect(u, p);

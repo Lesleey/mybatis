@@ -25,19 +25,19 @@ import org.apache.ibatis.reflection.property.PropertyTokenizer;
  * @author Clinton Begin
  */
 /**
- * 对象包装器
+ * 对象包装器: 用于提供一个统一的接口用来操作对象的属性
  * 
  */
 public interface ObjectWrapper {
-    //get
+  // 获取某一字段的值
   Object get(PropertyTokenizer prop);
-  //set
+  // 给某一字段赋值
   void set(PropertyTokenizer prop, Object value);
-  //查找属性
+  // 查找是否包含某一字段
   String findProperty(String name, boolean useCamelCaseMapping);
-  //取得getter的名字列表
+  //取得具有get方法的字段名称列表
   String[] getGetterNames();
-  //取得setter的名字列表
+  //取得具有set方法的字段名称列表
   String[] getSetterNames();
 
   //取得setter的类型

@@ -33,17 +33,35 @@ import org.apache.ibatis.session.Configuration;
  * MyBatis 中最重要最强大的元素
  */
 public class ResultMap {
-  //唯一标示，id
+
+  /**
+   *  该节点的唯一标识，通过 id 属性指定
+   * */
   private String id;
-  //对应的java类的类对象
+
+  /**
+   *  该 resultMap 所映射的 java类型
+   * */
   private Class<?> type;
-  //对应的所有requesltMappings,包括构造器的映射，属性的映射
+
+  /**
+   *  ResultMap所包含的所有映射，包含构造器和属性的映射
+   * */
   private List<ResultMapping> resultMappings;
-  //关于id主键列的所有ResultMappings,当resultMap节点下只有一个resultMappings，他也是idResultMappings
+
+  /**
+   *  该 ResultMap内部包含的所有主键映射（<id/> <idArg/>）,或者内部只有一个映射时，也为主键映射
+   * */
   private List<ResultMapping> idResultMappings;
-  //构造器内的所有的ResultMapping.<constructor>节点内部的。
+
+  /**
+   * 该ResultMap内部所包含的所有构造器映射
+   * */
   private List<ResultMapping> constructorResultMappings;
-  //所有的属性映射，通过属性和列名进行映射的
+
+  /**
+   * 该ResultMap内部所包含的所有构造器映射
+   * */
   private List<ResultMapping> propertyResultMappings;
   //对应映射的数据库的所有列名
   private Set<String> mappedColumns;

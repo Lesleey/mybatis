@@ -41,7 +41,7 @@ public final class TypeHandlerRegistry {
 
 
  /*
- *  JdbcType 对应的类型处理器
+ *  key: JdbcType, value: 对应的类型处理器
  * **/
   private final Map<JdbcType, TypeHandler<?>> JDBC_TYPE_HANDLER_MAP = new EnumMap<JdbcType, TypeHandler<?>>(JdbcType.class);
 

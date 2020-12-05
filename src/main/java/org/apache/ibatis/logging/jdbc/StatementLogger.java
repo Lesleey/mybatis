@@ -30,6 +30,10 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  * 
  * @author Clinton Begin
  * @author Eduardo Macarron
+ *
+ *   使用动态代理的方式为 Statement 对象添加日志
+ *    1. 如果开启日志，则调用执行方法之前，会打印为执行的sql语句
+ *    2. 通过方法获取 ResultSet 对象时，返回具有日志功能的 ResultSet 动态代理对象
  * 
  */
 public final class StatementLogger extends BaseJdbcLogger implements InvocationHandler {

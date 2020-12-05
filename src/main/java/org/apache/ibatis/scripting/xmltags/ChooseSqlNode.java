@@ -21,11 +21,20 @@ import java.util.List;
  * @author Clinton Begin
  */
 /**
- * choose SQL节点
+ * choose SQL节点: 类似于 java中的 switch 语句, 如果内部的<when/>节点，有一个条件满足，则拼装满足条件的那个 <when/> 节点内部的sql代码，
+ * 否则，如果存在<otherWise/> 节点， 则拼装 <otherWise/>节点内部的sql代码，
  *
  */
 public class ChooseSqlNode implements SqlNode {
+
+  /**
+   *  <otherWise/> 节点
+   * */
   private SqlNode defaultSqlNode;
+
+  /**
+   * <when/> 节点
+   * */
   private List<SqlNode> ifSqlNodes;
 
   public ChooseSqlNode(List<SqlNode> ifSqlNodes, SqlNode defaultSqlNode) {
@@ -35,18 +44,18 @@ public class ChooseSqlNode implements SqlNode {
 
   @Override
   public boolean apply(DynamicContext context) {
-    //循环判断if，只要有1个为true了，返回true
+    //1. 寻找满足条件的 <when> 节点，如果存在，则拼装，并返回
     for (SqlNode sqlNode : ifSqlNodes) {
       if (sqlNode.apply(context)) {
         return true;
       }
     }
-    //if都不为true，那就看otherwise
+    //2. 如果<when>节点指定的条件都不为true，那就拼装 <otherWise/> 节点内部的sql代码
     if (defaultSqlNode != null) {
       defaultSqlNode.apply(context);
       return true;
     }
-    //如果连otherwise都没有，返回false
+    //3. 否则，返回false
     return false;
   }
 }

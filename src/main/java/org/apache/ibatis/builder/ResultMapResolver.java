@@ -32,10 +32,30 @@ import org.apache.ibatis.mapping.ResultMapping;
  *
  */
 public class ResultMapResolver {
+
+  /**
+   *  mapper 构建助手，用于获取全局配置类中所需要的属性
+   * */
   private final MapperBuilderAssistant assistant;
+
+  /**
+   *  当前结果映射的唯一标示
+   * */
   private String id;
+
+  /**
+   *  当前结果映射所映射的java类型
+   * */
   private Class<?> type;
+
+  /**
+   *  当前 resultMap 所继承的 resultMap的唯一标识符
+   * */
   private String extend;
+
+  /**
+   *
+   * */
   private Discriminator discriminator;
   private List<ResultMapping> resultMappings;
   private Boolean autoMapping;
@@ -51,7 +71,6 @@ public class ResultMapResolver {
   }
 
   public ResultMap resolve() {
-      //解析又去调用MapperBuilderAssistant.addResultMap
     return assistant.addResultMap(this.id, this.type, this.extend, this.discriminator, this.resultMappings, this.autoMapping);
   }
 

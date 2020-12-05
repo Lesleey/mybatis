@@ -39,10 +39,14 @@ public abstract class AbstractEnhancedDeserializationProxy {
   protected static final String FINALIZE_METHOD = "finalize";
   protected static final String WRITE_REPLACE_METHOD = "writeReplace";
   private Class<?> type;
+
+  //懒加载的属性对应的加载对
   private Map<String, ResultLoaderMap.LoadPair> unloadedProperties;
   private ObjectFactory objectFactory;
   private List<Class<?>> constructorArgTypes;
   private List<Object> constructorArgs;
+
+
   private final Object reloadingPropertyLock;
   private boolean reloadingProperty;
 

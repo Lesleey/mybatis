@@ -21,7 +21,7 @@ import java.sql.Connection;
  * @author Clinton Begin
  */
 /**
- * 枚举类型，事务隔离级别
+ * 枚举类型，事务隔离级别包括五种：不使用事务、读未提交、读已提交、可重复读、可串行化
  * 
  */
 public enum TransactionIsolationLevel {

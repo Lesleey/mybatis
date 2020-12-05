@@ -21,17 +21,28 @@ import java.util.List;
 import org.apache.ibatis.mapping.MappedStatement;
 
 /**
- *  批处理记过
+ *  批处理结果
  * @author Jeff Butler
  */
 public class BatchResult {
-  //当前批处理的映射语句
+  /**
+   *  当前 sql 语句对应的 MappedStatement 对象
+   * */
   private final MappedStatement mappedStatement;
-  //当前预编译之后的sql
+
+  /**
+   *  当前要执行的预编译的 Sql 语句
+   * */
   private final String sql;
-  //批量处理的所有参数集合。
+
+  /**
+   *  批处理所传入的参数集合
+   * */
   private final List<Object> parameterObjects;
-  //批处理所影响的数据库行数
+
+  /**
+   *  记录批处理所更新的行数
+   * */
   private int[] updateCounts;
 
   public BatchResult(MappedStatement mappedStatement, String sql) {

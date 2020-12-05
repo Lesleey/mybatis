@@ -29,12 +29,14 @@ import org.apache.ibatis.reflection.property.PropertyTokenizer;
  * @author Clinton Begin
  */
 /**
- * Map包装器
+ * Map类型包装器
  * 
  */
 public class MapWrapper extends BaseWrapper {
 
-    //原来的对象
+  /**
+   *  原对象
+   * */
   private Map<String, Object> map;
 
   public MapWrapper(MetaObject metaObject, Map<String, Object> map) {
@@ -42,13 +44,16 @@ public class MapWrapper extends BaseWrapper {
     this.map = map;
   }
 
-  //get,set是允许的，
+  /**
+   *  获取某一属性的值
+   * */
   @Override
   public Object get(PropertyTokenizer prop) {
-      //如果有index,说明是集合，那就要分解集合,调用的是BaseWrapper.resolveCollection 和 getCollectionValue
+    //1. 如果有 index 不为空， 则表示为集合类型，则解析该集合
     if (prop.getIndex() != null) {
       Object collection = resolveCollection(prop, map);
       return getCollectionValue(prop, collection);
+    //2. 如果没有， 则直接获取该属性的值
     } else {
       return map.get(prop.getName());
     }

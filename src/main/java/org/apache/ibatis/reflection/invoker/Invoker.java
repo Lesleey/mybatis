@@ -21,13 +21,12 @@ import java.lang.reflect.InvocationTargetException;
  * @author Clinton Begin
  */
 /**
- * 调用者
+ *  调用者: 用于通过反射调用指定对象的某个方法
  * 
  */
 public interface Invoker {
-  //调用
+
   Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException;
 
-  //取得类型
   Class<?> getType();
 }

@@ -30,15 +30,14 @@ import org.apache.ibatis.datasource.DataSourceFactory;
  * @author Clinton Begin
  */
 /**
- * JNDI数据源工厂
- * 这个数据源的实现是为了使用如 Spring 或应用服务器这类的容器, 容器可以集 中或在外部配置数据源,然后放置一个 JNDI 上下文的引用。
+ * JNDI数据源工厂： JNDI 的命名服务可以把一个逻辑名称和一个具体的对象进行绑定，我们可以通过与DataSource对象绑定的逻辑名称获取对应的数据源对象
+ *  这种方式很大的提高了程序的移植性
  */
 public class JndiDataSourceFactory implements DataSourceFactory {
 
   public static final String INITIAL_CONTEXT = "initial_context";
   public static final String DATA_SOURCE = "data_source";
-  //和其他数据源配置相似, 它也可以通过名为 “env.” 的前缀直接向初始上下文发送属性。 比如:
-  //env.encoding=UTF8
+  //和其他数据源配置相似, 它也可以通过名为 “env.” 的前缀直接向初始上下文发送属性。 比如:env.encoding=UTF8
   public static final String ENV_PREFIX = "env.";
 
   private DataSource dataSource;
@@ -78,8 +77,6 @@ public class JndiDataSourceFactory implements DataSourceFactory {
     for (Entry<Object, Object> entry : allProps.entrySet()) {
       String key = (String) entry.getKey();
       String value = (String) entry.getValue();
-      //和其他数据源配置相似, 它也可以通过名为 “env.” 的前缀直接向初始上下文发送属性。 比如:
-      //env.encoding=UTF8
       if (key.startsWith(PREFIX)) {
         if (contextProperties == null) {
           contextProperties = new Properties();

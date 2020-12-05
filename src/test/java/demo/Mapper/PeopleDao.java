@@ -1,6 +1,8 @@
 package demo.Mapper;
 
+import demo.entity.Dept;
 import demo.entity.People;
+import demo.entity.User;
 
 import java.util.List;
 
@@ -13,5 +15,7 @@ public interface PeopleDao {
     /**
      * 查询所有用户
      * */
-    public List<People> queryAll();
+    public List<Dept> queryAll();
+
+    public List<User> getAllUsers();
 }

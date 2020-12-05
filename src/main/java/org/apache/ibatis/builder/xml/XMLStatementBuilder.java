@@ -51,8 +51,19 @@ import org.apache.ibatis.session.Configuration;
  */
 public class XMLStatementBuilder extends BaseBuilder {
 
+  /**
+   *  Mapper 构建助手，用于方便获取全局配置中的一些属性
+   * */
   private MapperBuilderAssistant builderAssistant;
+
+  /**
+   *  当前 sql 语句节点
+   * */
   private XNode context;
+
+  /**
+   *  当前需要匹配的数据库 databaseId
+   * */
   private String requiredDatabaseId;
 
   public XMLStatementBuilder(Configuration configuration, MapperBuilderAssistant builderAssistant, XNode context) {
@@ -66,124 +77,111 @@ public class XMLStatementBuilder extends BaseBuilder {
     this.requiredDatabaseId = databaseId;
   }
 
-  //解析语句(select|insert|update|delete) 主要是创建sqlSoure的过程
-//<select
-//  id="selectPerson"
-//  parameterType="int"
-//  parameterMap="deprecated"
-//  resultType="hashmap"
-//  resultMap="personResultMap"
-//  flushCache="false"
-//  useCache="true"
-//  timeout="10000"
-//  fetchSize="256"
-//  statementType="PREPARED"
-//  resultSetType="FORWARD_ONLY">
-//  SELECT * FROM PERSON WHERE ID = #{id}
-//</select>
+
+  /**
+   *  解析 sql 语句节点的完整过程
+   * */
   public void parseStatementNode() {
+    //1. 获取当前 sql 语句节点的唯一标识和 指定的 databaseId，如果和当前环境不匹配，则退出解析过程
     String id = context.getStringAttribute("id");
     String databaseId = context.getStringAttribute("databaseId");
-
-    //如果databaseId不匹配，退出
     if (!databaseIdMatchesCurrent(id, databaseId, this.requiredDatabaseId)) {
       return;
     }
-
-    //暗示驱动程序每次批量返回的结果行数
+    //2. 获取该 sql 语句节点的基本属性
     Integer fetchSize = context.getIntAttribute("fetchSize");
-    //超时时间
     Integer timeout = context.getIntAttribute("timeout");
-    //引用外部 parameterMap,已废弃
     String parameterMap = context.getStringAttribute("parameterMap");
-    //参数类型
     String parameterType = context.getStringAttribute("parameterType");
     Class<?> parameterTypeClass = resolveClass(parameterType);
-    //引用外部的 resultMap(高级功能)
     String resultMap = context.getStringAttribute("resultMap");
-    //返回值类型
     String resultType = context.getStringAttribute("resultType");
-    //脚本语言,mybatis3.2的新功能
     String lang = context.getStringAttribute("lang");
-    //得到语言驱动,用来解析动态sql的
     LanguageDriver langDriver = getLanguageDriver(lang);
-
     Class<?> resultTypeClass = resolveClass(resultType);
-    //结果集类型，FORWARD_ONLY|SCROLL_SENSITIVE|SCROLL_INSENSITIVE 中的一种
     String resultSetType = context.getStringAttribute("resultSetType");
-    //语句类型, STATEMENT|PREPARED|CALLABLE 的一种
     StatementType statementType = StatementType.valueOf(context.getStringAttribute("statementType", StatementType.PREPARED.toString()));
     ResultSetType resultSetTypeEnum = resolveResultSetType(resultSetType);
-
-    //获取命令类型(select|insert|update|delete)
+    //3. 根据 sql 语句节点的节点名称获取对应的命令类型
     String nodeName = context.getNode().getNodeName();
     SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
     boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
     boolean flushCache = context.getBooleanAttribute("flushCache", !isSelect);
-    //是否要缓存select结果
     boolean useCache = context.getBooleanAttribute("useCache", isSelect);
-    //仅针对嵌套结果 select 语句适用：如果为 true，就是假设包含了嵌套结果集或是分组了，这样的话当返回一个主结果行的时候，就不会发生有对前面结果集的引用的情况。
-    //这就使得在获取嵌套的结果集的时候不至于导致内存不够用。默认值：false。 
+    //todo lisilu resultOrdered
     boolean resultOrdered = context.getBooleanAttribute("resultOrdered", false);
 
-    // Include Fragments before parsing
-    //解析之前先解析<include>SQL片段
+    //4. 解析 sql 片段,将该节点内部的所有 <include/> 节点替换为真正的 sql 代码
     XMLIncludeTransformer includeParser = new XMLIncludeTransformer(configuration, builderAssistant);
     includeParser.applyIncludes(context.getNode());
 
-    // Parse selectKey after includes and remove them.
-    //解析之前先解析<selectKey>
+    //5. 解析并处理 <selectKey/> 节点
     processSelectKeyNodes(id, parameterTypeClass, langDriver);
     
-    // Parse the SQL (pre: <selectKey> and <include> were parsed and removed)
-    //解析成SqlSource，一般是DynamicSqlSource
+    //6. 根据 sql语句节点构建 Sql源
     SqlSource sqlSource = langDriver.createSqlSource(configuration, context, parameterTypeClass);
     String resultSets = context.getStringAttribute("resultSets");
-    //（仅对 insert 和 update 有用）唯一标记一个属性，MyBatis 会通过 getGeneratedKeys 的返回值或者通过 insert 语句的 selectKey 子元素设置它的键值，
-    // 默认值：未设置（unset）。如果希望得到多个生成的列，也可以是逗号分隔的属性名称列表，keyProperty表示要返回的实体类的属性
+    //7.（仅对 insert 和 update 有用），mybatis会通过 getGeneratedKeys 的返回值或者通过 insert 语句的 selectKey 子元素设置它的键值
+    //如果希望得到多个生成的列，也可以是逗号分隔的属性名称列表，keyProperty表示要返回的实体类的属性
     String keyProperty = context.getStringAttribute("keyProperty");
-    //（仅对 insert 和 update 有用）通过生成的键值设置表中的列名，这个设置仅在某些数据库（像 PostgreSQL）是必须的，当主键列不是表中的第一列的时候需要设置。
+    //8.（仅对 insert 和 update 有用）通过生成的键值设置表中的列名，这个设置仅在某些数据库（像 PostgreSQL）是必须的，当主键列不是表中的第一列的时候需要设置。
     // 如果希望使用多个生成的列，也可以设置为逗号分隔的属性名称列表。keyColumn表示要返回的表的属性
     String keyColumn = context.getStringAttribute("keyColumn");
     KeyGenerator keyGenerator;
     String keyStatementId = id + SelectKeyGenerator.SELECT_KEY_SUFFIX;
     keyStatementId = builderAssistant.applyCurrentNamespace(keyStatementId, true);
+    //9. 如果有 <selectKey/> 节点，则使用解析该节点获取到的 keyGenerator
     if (configuration.hasKeyGenerator(keyStatementId)) {
       keyGenerator = configuration.getKeyGenerator(keyStatementId);
+    //10. 如果在该节点指定 useGeneratedKeys， 或者在全局settings配置且当前节点为 insert 节点
     } else {
       keyGenerator = context.getBooleanAttribute("useGeneratedKeys",
           configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
           ? new Jdbc3KeyGenerator() : new NoKeyGenerator();
     }
 
-	//又去调助手类
+	//11. 调用助手类为当前的sql语句节点构建 MappedStatement对象
     builderAssistant.addMappedStatement(id, sqlSource, statementType, sqlCommandType,
         fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
         resultSetTypeEnum, flushCache, useCache, resultOrdered, 
         keyGenerator, keyProperty, keyColumn, databaseId, langDriver, resultSets);
   }
 
+  /**
+   * @param id 所属 <sql/>节点的唯一标识
+   * @param parameterTypeClass 参数类型
+   * @param langDriver 所使用的语言驱动实例（一般为 {@link org.apache.ibatis.scripting.xmltags.XMLLanguageDriver}）
+   * */
   private void processSelectKeyNodes(String id, Class<?> parameterTypeClass, LanguageDriver langDriver) {
+    //1. 获取该节点内部的所有 <selectKey/> 节点
     List<XNode> selectKeyNodes = context.evalNodes("selectKey");
+    //2. 开始解析 <selectKey/> 节点
     if (configuration.getDatabaseId() != null) {
       parseSelectKeyNodes(id, selectKeyNodes, parameterTypeClass, langDriver, configuration.getDatabaseId());
     }
     parseSelectKeyNodes(id, selectKeyNodes, parameterTypeClass, langDriver, null);
+
     removeSelectKeyNodes(selectKeyNodes);  //解析完成当前的selectkey节点之后，从它的父节点移除它。
   }
 
+
   private void parseSelectKeyNodes(String parentId, List<XNode> list, Class<?> parameterTypeClass, LanguageDriver langDriver, String skRequiredDatabaseId) {
     for (XNode nodeToHandle : list) {
-      String id = parentId + SelectKeyGenerator.SELECT_KEY_SUFFIX; //所属那个sql节点的id+select_key的前缀。
-      String databaseId = nodeToHandle.getStringAttribute("databaseId");  //当前节点的databaseId属性。
+      //1. 所属那个sql节点的唯一标识id + 固定的select_key的前缀
+      String id = parentId + SelectKeyGenerator.SELECT_KEY_SUFFIX;
+      String databaseId = nodeToHandle.getStringAttribute("databaseId");
+      //2. 如果和当前数据库环境相匹配，则开始解析过程
       if (databaseIdMatchesCurrent(id, databaseId, skRequiredDatabaseId)) {
         parseSelectKeyNode(id, nodeToHandle, parameterTypeClass, langDriver, databaseId);
       }
     }
   }
 
+  /**
+   *  <selectKey/> 节点的真实解析过程
+   * */
   private void parseSelectKeyNode(String id, XNode nodeToHandle, Class<?> parameterTypeClass, LanguageDriver langDriver, String databaseId) {
-    //主要是获取selectkey节点的所有属性
+    //1. 获取该节点的基本属性
     String resultType = nodeToHandle.getStringAttribute("resultType");
     Class<?> resultTypeClass = resolveClass(resultType);
     StatementType statementType = StatementType.valueOf(nodeToHandle.getStringAttribute("statementType", StatementType.PREPARED.toString()));
@@ -191,7 +189,7 @@ public class XMLStatementBuilder extends BaseBuilder {
     String keyColumn = nodeToHandle.getStringAttribute("keyColumn");
     boolean executeBefore = "BEFORE".equals(nodeToHandle.getStringAttribute("order", "AFTER"));
 
-    //defaults
+    //2. 默认值
     boolean useCache = false;
     boolean resultOrdered = false;
     KeyGenerator keyGenerator = new NoKeyGenerator();
@@ -201,10 +199,10 @@ public class XMLStatementBuilder extends BaseBuilder {
     String parameterMap = null;
     String resultMap = null;
     ResultSetType resultSetTypeEnum = null;
-    //解析selectKey节点的内部的sql语句，创建sqlSource.过程之后会讲。
+    //3. 解析selectKey节点的内部的sql语句，创建sqlSource。
     SqlSource sqlSource = langDriver.createSqlSource(configuration, nodeToHandle, parameterTypeClass);
     SqlCommandType sqlCommandType = SqlCommandType.SELECT;
-    //根据selectkey节点的所有属性，封装成mappedStatment注册到configuration对象中。
+    //4. 获取selectkey节点的所有属性，封装成mappedStatment对象注册到configuration对象中。
     builderAssistant.addMappedStatement(id, sqlSource, statementType, sqlCommandType,
         fetchSize, timeout, parameterMap, parameterTypeClass, resultMap, resultTypeClass,
         resultSetTypeEnum, flushCache, useCache, resultOrdered,
@@ -213,7 +211,7 @@ public class XMLStatementBuilder extends BaseBuilder {
     id = builderAssistant.applyCurrentNamespace(id, false);
 
     MappedStatement keyStatement = configuration.getMappedStatement(id, false);
-    //根据mappedStatment封装一个selectKeyGenerator注册到configuration对象中。他有两个回调方法，主要是通过回调方法赋值。
+    //5. 将解析<selectKey/>节点获取到的mappedStatment封装一个selectKeyGenerator注册到configuration对象中。
     configuration.addKeyGenerator(id, new SelectKeyGenerator(keyStatement, executeBefore));
   }
 
@@ -244,13 +242,16 @@ public class XMLStatementBuilder extends BaseBuilder {
     return true;
   }
 
-  //取得语言驱动
+  /**
+   *  获取脚本语言驱动
+   * */
   private LanguageDriver getLanguageDriver(String lang) {
+    //1. 如果指定了脚本语言驱动，则获取对应的类对象
     Class<?> langClass = null;
     if (lang != null) {
       langClass = resolveClass(lang);
     }
-    //调用builderAssistant
+    //2. 从脚本语言驱动中获取对应的语言驱动实例
     return builderAssistant.getLanguageDriver(langClass);
   }
 

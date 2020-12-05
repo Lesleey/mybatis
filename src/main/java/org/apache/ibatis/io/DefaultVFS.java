@@ -40,7 +40,7 @@ import org.apache.ibatis.logging.LogFactory;
  * A default implementation of {@link VFS} that works for most application servers.
  *
  *   默认的VFS，提供了读取jar包的方法
- *   TODO lisilu VFS 读取jar包
+ *   TODO lesleey VFS 读取jar包
  * @author Ben Gunter
  */
 public class DefaultVFS extends VFS {

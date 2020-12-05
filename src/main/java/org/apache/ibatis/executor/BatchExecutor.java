@@ -41,38 +41,51 @@ import org.apache.ibatis.transaction.Transaction;
 
 /**
  * @author Jeff Butler   批量执行器，
- * 大致就是：就是准备statment,然后设置参数，然后在准备statment,设置参数，...执行
+ *  批量处理流程
+ *    1. 准备 PrepareStatment 对象
+ *    2. 设置参数，设置完成之后， 调用 addBatch(), 将参数集合添加到 PrepareStatment 对象中
+ *    3. 重复第二步
+ *    4. 调用 executeBatch() 方法执行批量执行，然后调用 clearBatch() 方法清除 PrepareStatement 对象中存储所有的参数集合
  */
 public class BatchExecutor extends BaseExecutor {
 
   public static final int BATCH_UPDATE_RETURN_VALUE = Integer.MIN_VALUE + 1002;
 
-  //所有的preparedStatment, 最后的一个是最近添加的。
   private final List<Statement> statementList = new ArrayList<Statement>();
-  //...
   private final List<BatchResult> batchResultList = new ArrayList<BatchResult>();
-  //当前批处理的sql语句
+
+  /**
+   *  当前执行的进行预编译的 sql 语句
+   * */
   private String currentSql;
-  //当前执行的所对应的MappedStatment
+
+  /**
+   *  当前执行的 sql 语句对应的 MappedStatement 对象
+   * */
   private MappedStatement currentStatement;
 
   public BatchExecutor(Configuration configuration, Transaction transaction) {
     super(configuration, transaction);
   }
 
-  //判断当前预编译的sql,是否和当前执行器中的sql一致，则获取当前的statment,设置参数，调用statment.addBatch方法，如果不一致，则创建statment,在这里不会执行
+  /**
+   *  执行 update | delete | insert 语句 的批处理（实际不执行）
+   * */
   @Override
   public int doUpdate(MappedStatement ms, Object parameterObject) throws SQLException {
     final Configuration configuration = ms.getConfiguration();
     final StatementHandler handler = configuration.newStatementHandler(this, ms, parameterObject, RowBounds.DEFAULT, null, null);
     final BoundSql boundSql = handler.getBoundSql();
+    //1. 获取当前执行进行预编译的 sql语句
     final String sql = boundSql.getSql();
     final Statement stmt;
+    //2. 如果当前执行的 sql语句和 最近一次执行的相同
     if (sql.equals(currentSql) && ms.equals(currentStatement)) {
       int last = statementList.size() - 1;
       stmt = statementList.get(last);
       BatchResult batchResult = batchResultList.get(last);
       batchResult.addParameterObject(parameterObject);
+    //3. 如果当前执行的 sql 语句和最近一次执行的不同，则构建新的对象添加到集合中
     } else {
       Connection connection = getConnection(ms.getStatementLog());
       stmt = handler.prepare(connection);
@@ -81,18 +94,24 @@ public class BatchExecutor extends BaseExecutor {
       statementList.add(stmt);
       batchResultList.add(new BatchResult(ms, sql, parameterObject));
     }
+    //4. 为当前 sql 语句设置参数
     handler.parameterize(stmt);
+    //5. 将设置的参数集合添加到 对应的 Statement 对象中
     handler.batch(stmt);
     return BATCH_UPDATE_RETURN_VALUE;
   }
 
-  //查询，除了刷新flushStatments和简单查询器的查询方法一致
+  /**
+   *  执行 select 语句
+   * */
   @Override
   public <E> List<E> doQuery(MappedStatement ms, Object parameterObject, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql)
       throws SQLException {
     Statement stmt = null;
     try {
+      //1. 刷新所有的 Statement 对象(真正的执行过程)
       flushStatements();
+      //2. 执行查询过程
       Configuration configuration = ms.getConfiguration();
       StatementHandler handler = configuration.newStatementHandler(wrapper, ms, parameterObject, rowBounds, resultHandler, boundSql);
       Connection connection = getConnection(ms.getStatementLog());
@@ -103,19 +122,26 @@ public class BatchExecutor extends BaseExecutor {
       closeStatement(stmt);
     }
   }
-  //再刷新参数时，执行
+
+  /**
+   *  刷新进行批处理的所有 Statement 对象（真正的执行过程）
+   * */
   @Override
   public List<BatchResult> doFlushStatements(boolean isRollback) throws SQLException {
     try {
       List<BatchResult> results = new ArrayList<BatchResult>();
+      //1. 如果回滚，返回空集合， 并清空所有的批量处理的 Statement 对象
       if (isRollback) {
         return Collections.emptyList();
       }
+      //2. 遍历并执行所有进行批处理的 Statement 对象
       for (int i = 0, n = statementList.size(); i < n; i++) {
         Statement stmt = statementList.get(i);
         BatchResult batchResult = batchResultList.get(i);
         try {
+          //2.1 调用executeBatch() 方法进行批量处理
           batchResult.setUpdateCounts(stmt.executeBatch());
+          //2.2 如果有主键生成器，则执行对应的回调方法
           MappedStatement ms = batchResult.getMappedStatement();
           List<Object> parameterObjects = batchResult.getParameterObjects();
           KeyGenerator keyGenerator = ms.getKeyGenerator();
@@ -128,6 +154,7 @@ public class BatchExecutor extends BaseExecutor {
             }
           }
         } catch (BatchUpdateException e) {
+          //3. 如果 执行过程中抛出异常，则打印批量处理的第几个 Statement 对象出现了异常
           StringBuilder message = new StringBuilder();
           message.append(batchResult.getMappedStatement().getId())
               .append(" (batch index #")
@@ -145,6 +172,7 @@ public class BatchExecutor extends BaseExecutor {
       }
       return results;
     } finally {
+      // 无论是否回滚，都会关闭所有批量处理的 Statement 对象，并清空所有的数据
       for (Statement stmt : statementList) {
         closeStatement(stmt);
       }

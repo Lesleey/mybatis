@@ -22,7 +22,7 @@ import java.lang.reflect.UndeclaredThrowableException;
  * @author Clinton Begin
  */
 /**
- * 异常工具
+ * 异常工具: 用于处理处理两种异常，InvocationTargetException和UndeclaredThrowableException，将它们解包,从而得到真正的异常
  *
  */
 public class ExceptionUtil {
@@ -34,7 +34,6 @@ public class ExceptionUtil {
   public static Throwable unwrapThrowable(Throwable wrapped) {
     Throwable unwrapped = wrapped;
     while (true) {
-        //处理2种异常，InvocationTargetException和UndeclaredThrowableException，将它们解包,从而得到真正的异常
       if (unwrapped instanceof InvocationTargetException) {
         unwrapped = ((InvocationTargetException) unwrapped).getTargetException();
       } else if (unwrapped instanceof UndeclaredThrowableException) {

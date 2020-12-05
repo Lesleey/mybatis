@@ -34,7 +34,7 @@ import org.apache.ibatis.session.RowBounds;
  * @author Clinton Begin
  */
 /**
- * 简单语句处理器(STATEMENT)，不需要参数，直接执行
+ * 简单语句处理器: 用来处理 Statement 类型的sql语句
  * 
  */
 public class SimpleStatementHandler extends BaseStatementHandler {
@@ -43,13 +43,16 @@ public class SimpleStatementHandler extends BaseStatementHandler {
     super(executor, mappedStatement, parameter, rowBounds, resultHandler, boundSql);
   }
 
-  //更新，执行sql语句之后，判断有没有然后根据keyGenerator执行会调用方法
+  /**
+   *  执行 delete | insert | update 语句
+   * */
   @Override
   public int update(Statement statement) throws SQLException {
     String sql = boundSql.getSql();
     Object parameterObject = boundSql.getParameterObject();
     KeyGenerator keyGenerator = mappedStatement.getKeyGenerator();
     int rows;
+    //1. 如果该 sql 语句节点指定了主键生成器，则先执行sql 语句，在调用生成器的回调方法
     if (keyGenerator instanceof Jdbc3KeyGenerator) {
       statement.execute(sql, Statement.RETURN_GENERATED_KEYS);
       rows = statement.getUpdateCount();
@@ -58,8 +61,8 @@ public class SimpleStatementHandler extends BaseStatementHandler {
       statement.execute(sql);
       rows = statement.getUpdateCount();
       keyGenerator.processAfter(executor, mappedStatement, statement, parameterObject);
+    //2. 否则，直接执行
     } else {
-      //如果没有keyGenerator,直接调用Statement.execute和Statement.getUpdateCount
       statement.execute(sql);
       rows = statement.getUpdateCount();
     }
@@ -73,19 +76,23 @@ public class SimpleStatementHandler extends BaseStatementHandler {
     statement.addBatch(sql);
   }
 
-  //select-->结果给ResultHandler
+  /**
+   *  执行 select 语句
+   * */
   @Override
   public <E> List<E> query(Statement statement, ResultHandler resultHandler) throws SQLException {
+    //1. 执行 sql 语句
     String sql = boundSql.getSql();
     statement.execute(sql);
-    //先执行Statement.execute，然后交给ResultSetHandler.handleResultSets
+    //2. 通过结果集处理器封装返回的结果
     return resultSetHandler.<E>handleResultSets(statement);
   }
 
-  //调用connection的createStatment
+  /**
+   *  调用 connection.createStatement() 初始化Statement对象
+   * */
   @Override
   protected Statement instantiateStatement(Connection connection) throws SQLException {
-    //调用Connection.createStatement
     if (mappedStatement.getResultSetType() != null) {
       return connection.createStatement(mappedStatement.getResultSetType().getValue(), ResultSet.CONCUR_READ_ONLY);
     } else {
@@ -93,7 +100,9 @@ public class SimpleStatementHandler extends BaseStatementHandler {
     }
   }
 
-  //设置参数，简单执行器，没有设置参数的方法，从sqlSource获取的sql语句直接来运行,没有预编译
+  /**
+   *  参数化为空方法，因为 Statement 类型的sql语句没有设置参数的方法，无法预编译，直接执行给定的sql语句
+   * */
   @Override
   public void parameterize(Statement statement) throws SQLException {
     // N/A

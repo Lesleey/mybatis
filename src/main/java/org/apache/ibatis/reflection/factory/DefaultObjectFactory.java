@@ -47,14 +47,17 @@ public class DefaultObjectFactory implements ObjectFactory, Serializable {
     return create(type, null, null);
   }
 
+  /**
+   * @param type 需要实例化的类对象
+   * @param constructorArgs 实例化类对象的所使用的构造函数的所有参数类型
+   * @param constructorArgTypes 实例化类对象所使用的构造参数
+   * */
   @SuppressWarnings("unchecked")
   @Override
   public <T> T create(Class<T> type, List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
-    //根据接口创建具体的类
-    //1.解析接口
+    //1.解析接口，获取实际需要实例化的类对象
     Class<?> classToCreate = resolveInterface(type);
-    // we know types are assignable
-    //2.实例化类
+    //2. 实例化对象
     return (T) instantiateClass(classToCreate, constructorArgTypes, constructorArgs);
   }
 
@@ -68,7 +71,7 @@ public class DefaultObjectFactory implements ObjectFactory, Serializable {
   private <T> T instantiateClass(Class<T> type, List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
     try {
       Constructor<T> constructor;
-      //如果没有传入constructor，调用空构造函数，核心是调用Constructor.newInstance
+      //1. 如果没有传入构造参数或者指定一个构造函数，则使用默认的构造函数
       if (constructorArgTypes == null || constructorArgs == null) {
         constructor = type.getDeclaredConstructor();
         if (!constructor.isAccessible()) {
@@ -76,14 +79,14 @@ public class DefaultObjectFactory implements ObjectFactory, Serializable {
         }
         return constructor.newInstance();
       }
-      //如果传入constructor，调用传入的构造函数，核心是调用Constructor.newInstance
+      //2. 使用指定的构造函数初始化对象
       constructor = type.getDeclaredConstructor(constructorArgTypes.toArray(new Class[constructorArgTypes.size()]));
       if (!constructor.isAccessible()) {
         constructor.setAccessible(true);
       }
       return constructor.newInstance(constructorArgs.toArray(new Object[constructorArgs.size()]));
     } catch (Exception e) {
-        //如果出错，包装一下，重新抛出自己的异常
+      //3. 如果抛出异常，给出友好的提示，包装该异常，打印构造的相关信息，包括初始化类对象的类型、所使用的构造函数和对应的参数等等
       StringBuilder argTypes = new StringBuilder();
       if (constructorArgTypes != null) {
         for (Class<?> argType : constructorArgTypes) {
@@ -102,31 +105,36 @@ public class DefaultObjectFactory implements ObjectFactory, Serializable {
     }
   }
 
-  //1.解析接口,将interface转为实际class
+  /**
+   * @param type 需要实例化的类对象
+   *     如果传入的为接口，则返回一个具体的实现类
+   * */
   protected Class<?> resolveInterface(Class<?> type) {
     Class<?> classToCreate;
     if (type == List.class || type == Collection.class || type == Iterable.class) {
-        //List|Collection|Iterable-->ArrayList
       classToCreate = ArrayList.class;
+
     } else if (type == Map.class) {
-        //Map->HashMap
       classToCreate = HashMap.class;
+
     } else if (type == SortedSet.class) { // issue #510 Collections Support
-        //SortedSet->TreeSet
       classToCreate = TreeSet.class;
+
     } else if (type == Set.class) {
-        //Set->HashSet
       classToCreate = HashSet.class;
+
     } else {
-        //除此以外，就用原来的类型
       classToCreate = type;
     }
     return classToCreate;
   }
 
+  /**
+   * @param type 需要被创建的实例类的类对象
+   *    用于判断该类型是否为Collection的子类， 即是否为集合类型
+   * */
   @Override
   public <T> boolean isCollection(Class<T> type) {
-      //是否是Collection的子类
     return Collection.class.isAssignableFrom(type);
   }
 

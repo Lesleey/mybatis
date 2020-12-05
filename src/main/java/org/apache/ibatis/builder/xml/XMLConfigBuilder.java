@@ -423,12 +423,12 @@ public class XMLConfigBuilder extends BaseBuilder {
 //</dataSource>
   private DataSourceFactory dataSourceElement(XNode context) throws Exception {
     if (context != null) {
-      //首先获取该dataSource节点type属性的值，然后通过别名注册器获取对应的类对象，然后返回该对象的实例
+      //1. 获取 数据源工厂的全限定名或者别名
       String type = context.getStringAttribute("type");
+      //2. 获取该 <dataSource/> 节点内部的所有子节点作为属性键值对
       Properties props = context.getChildrenAsProperties();
-		//根据type="POOLED",PooledDataSourceFactory
+      //3. 实例化数据源工厂，并返回
       DataSourceFactory factory = (DataSourceFactory) resolveClass(type).newInstance();
-      //通过这，给该数据源工厂内部的dataSource设置属性，password,url,jdbc,driver,也可以给driver设置一些额外的属性
       factory.setProperties(props);
       return factory;
     }

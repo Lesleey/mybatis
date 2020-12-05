@@ -10,7 +10,6 @@ import java.util.List;
 public class People {
     private long id;
     private String note;
-    private Dept dept;
 
     public People() {
     }
@@ -41,7 +40,6 @@ public class People {
         return "People{" +
                 "id=" + id +
                 ", note='" + note + '\'' +
-                ", dept=" + dept +
                 '}';
     }
 }

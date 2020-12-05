@@ -31,32 +31,41 @@ import org.apache.ibatis.reflection.SystemMetaObject;
  * @author Clinton Begin
  */
 /**
- * 没有池化的数据源工厂
+ *  没有池化的数据源工厂
  */
 public class UnpooledDataSourceFactory implements DataSourceFactory {
 
+  /**
+   *  数据源驱动的属性前缀
+   * */
   private static final String DRIVER_PROPERTY_PREFIX = "driver.";
   private static final int DRIVER_PROPERTY_PREFIX_LENGTH = DRIVER_PROPERTY_PREFIX.length();
 
+  /**
+   *  数据源工厂构建的数据源对象（此处为非池化数据源）
+   * */
   protected DataSource dataSource;
 
   public UnpooledDataSourceFactory() {
     this.dataSource = new UnpooledDataSource();
   }
 
+  /**
+   *  为内部的数据源设置属性对应的值
+   * */
   @Override
   public void setProperties(Properties properties) {
     Properties driverProperties = new Properties();
     MetaObject metaDataSource = SystemMetaObject.forObject(dataSource);
+    // 遍历所有的属性键值对
     for (Object key : properties.keySet()) {
       String propertyName = (String) key;
-      //作为可选项,你可以设置数据库驱动的属性。要这样做,属性的前缀是以“driver.”开 头的,例如
-      //driver.encoding=UTF8
+      //1. 如果是针对数据源驱动的属性，则添加到集合中
       if (propertyName.startsWith(DRIVER_PROPERTY_PREFIX)) {
         String value = properties.getProperty(propertyName);
         driverProperties.setProperty(propertyName.substring(DRIVER_PROPERTY_PREFIX_LENGTH), value);
+      //2. 如果数据源有设置该属性的 set 方法，则调用该方法进行赋值
       } else if (metaDataSource.hasSetter(propertyName)) {
-    	  //如果UnpooledDataSource有相应的setter函数，则设置它
         String value = (String) properties.get(propertyName);
         Object convertedValue = convertValue(metaDataSource, propertyName, value);
         metaDataSource.setValue(propertyName, convertedValue);
@@ -74,7 +83,9 @@ public class UnpooledDataSourceFactory implements DataSourceFactory {
     return dataSource;
   }
 
-  //根据setter的类型,将配置文件中的值强转成相应的类型
+  /**
+   *  根据字段的 set 方法的所需参数类型，将给定的字符串转化成相应的类型
+   * */
   private Object convertValue(MetaObject metaDataSource, String propertyName, String value) {
     Object convertedValue = value;
     Class<?> targetType = metaDataSource.getSetterType(propertyName);

@@ -21,35 +21,47 @@ import java.util.Iterator;
  * @author Clinton Begin
  */
 /**
- * 属性标记器，迭代子模式
- * 如person[0].birthdate.year，将依次取得person[0], birthdate, year
- * 
+ * 属性分词器： 用于解析表达式的值
+ *
  */
 public class PropertyTokenizer implements Iterable<PropertyTokenizer>, Iterator<PropertyTokenizer> {
-  //第一个"."之前的对象名，
-  private String name; //person
-  //第一个"."之前的字符串
-  private String indexedName; //person[0]
-  //第一个"."之前的"[]"之间的值
-  private String index; //0
-  //第一个"."之后的字符串
-  private String children; //birthdate.year
 
-  //有"."表示有孩子
-  //有"["表示当前对象是集合类型
+  //如person[0].birthdate.year，将依次取得person[0], birthdate, year
+
+  /**
+   * 最"外层"的对象，也就是第一个 "." 前的对象， 上例为 person
+   * */
+  private String name;
+
+  /**
+   *  第一个 "." 之前的字符串，可以理解为当前分词器此次获取到的对象值， 上例为 person[0]
+   * */
+  private String indexedName;
+
+  /**
+   *  如果为集合的话， index 为 [] 之间的索引， 上例为 0
+   * */
+  private String index;
+
+  /**
+   *  第一个 "." 之后的字符串， 可以理解为当前获取到的对象值的某个属性, 上例为 birthdate.year
+   * */
+  private String children;
+
+  /**
+   * @param fullname 表达式
+   *     对该表达式进行分词
+   * */
   public PropertyTokenizer(String fullname) {
-      //person[0].birthdate.year
     int delim = fullname.indexOf('.');
     if (delim > -1) {
       name = fullname.substring(0, delim);
       children = fullname.substring(delim + 1);
     } else {
-        //找不到.的话，取全部部分
       name = fullname;
       children = null;
     }
     indexedName = name;
-    //把中括号里的数字给解析出来
     delim = name.indexOf('[');
     if (delim > -1) {
       index = name.substring(delim + 1, name.length() - 1);
@@ -78,7 +90,9 @@ public class PropertyTokenizer implements Iterable<PropertyTokenizer>, Iterator<
     return children != null;
   }
 
-  //取得下一个,非常简单，直接再通过儿子来new另外一个实例
+  /**
+   *  next() 方法也就是对 孩子再次进行分词操作
+   * */
   @Override
   public PropertyTokenizer next() {
     return new PropertyTokenizer(children);

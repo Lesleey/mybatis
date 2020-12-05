@@ -119,15 +119,14 @@ public class CacheBuilder {
     // issue #352, do not apply decorators to custom caches
     //4. 如果使用默认的缓存对象，对该对象进行装饰
     if (PerpetualCache.class.equals(cache.getClass())) {
+      //5. 遍历所有的装饰者进行装饰
       for (Class<? extends Cache> decorator : decorators) {
-          //装饰者模式一个个包装cache
         cache = newCacheDecoratorInstance(decorator, cache);
-        //又要来一遍设额外属性
         setCacheProperties(cache);
       }
-      //最后附加上标准的装饰者
+      //6. 设置标准的装饰者
       cache = setStandardDecorators(cache);
-    //5. 如果该缓存对象不是 LoggingCache的子类，则进行添加日志功能
+    //7. 如果该缓存对象不是 LoggingCache的子类，则进行添加日志功能
     } else if (!LoggingCache.class.isAssignableFrom(cache.getClass())) {
       cache = new LoggingCache(cache);
     }
@@ -146,26 +145,32 @@ public class CacheBuilder {
     }
   }
 
+  /**
+   *  为默认的缓存对象设置标准的装饰者
+   * */
   private Cache setStandardDecorators(Cache cache) {
     try {
+      //1. 获取缓存对象的元数据
       MetaObject metaCache = SystemMetaObject.forObject(cache);
+      //2. 设置大小
       if (size != null && metaCache.hasSetter("size")) {
         metaCache.setValue("size", size);
       }
+      //3. 清空间隔
       if (clearInterval != null) {
-        //刷新缓存间隔,怎么刷新呢，用ScheduledCache来刷，还是装饰者模式，漂亮！
         cache = new ScheduledCache(cache);
         ((ScheduledCache) cache).setClearInterval(clearInterval);
       }
+      //4. 判断是否可读可写，如果只读，则直接返回缓存中的对象的引用，但是如果对返回的对象进行修改缓存中的对象也相应的会被修改。如果标记可读写，则会使用 SerializedCached 进行装饰，获取对象时
+      //会返回缓存对象的拷贝，所以相比前者比较慢，但是会比较安全，因此默认是可读写的
       if (readWrite) {
-          //如果readOnly=false,可读写的缓存 会返回缓存对象的拷贝(通过序列化) 。这会慢一些,但是安全,因此默认是 false。
-        //如果是只读的，那么它就会直接返回当前缓存的引用，所以比较快。但是如果你在外部修改了，缓存内部的对象也都会改变
         cache = new SerializedCache(cache);
       }
-      //日志缓存
+      //5. 增加日志功能
       cache = new LoggingCache(cache);
-      //同步缓存, 3.2.6以后这个类已经没用了，考虑到Hazelcast, EhCache已经有锁机制了，所以这个锁就画蛇添足了。
+      //6. 同步缓存
       cache = new SynchronizedCache(cache);
+      //7. 阻塞缓存
       if (blocking) {
         cache = new BlockingCache(cache);
       }
@@ -175,17 +180,19 @@ public class CacheBuilder {
     }
   }
 
+  /**
+   *  为缓存对象设置自定义的属性，
+   * */
   private void setCacheProperties(Cache cache) {
     if (properties != null) {
-      //通过该缓存对象，获得该对象的元对象
+      //1. 通过该缓存对象，获得该对象的元对象
       MetaObject metaCache = SystemMetaObject.forObject(cache);
-      //用反射设置额外的property属性
+     //2. 遍历所有的自定义属性集，通过反射设置值
       for (Map.Entry<Object, Object> entry : properties.entrySet()) {
         String name = (String) entry.getKey();
         String value = (String) entry.getValue();
         if (metaCache.hasSetter(name)) {
           Class<?> type = metaCache.getSetterType(name);
-          //下面就是各种基本类型的判断了，味同嚼蜡但是又不得不写
           if (String.class == type) {
             metaCache.setValue(name, value);
           } else if (int.class == type

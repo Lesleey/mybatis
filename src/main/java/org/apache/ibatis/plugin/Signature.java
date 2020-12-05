@@ -29,10 +29,19 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Signature {
-  //就是定义哪些类，方法，参数需要被拦截
+
+  /**
+   *  需要被拦截的类对象
+   * */
   Class<?> type();
 
+  /**
+   *  需要被拦截的方法名称
+   * */
   String method();
 
+  /**
+   *  用于唯一定位重载的方法
+   * */
   Class<?>[] args();
 }

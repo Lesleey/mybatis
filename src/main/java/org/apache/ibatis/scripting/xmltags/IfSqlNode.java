@@ -19,12 +19,23 @@ package org.apache.ibatis.scripting.xmltags;
  * @author Clinton Begin
  */
 /**
- * if SQL节点
+ * if SQL节点：可以根据条件判断是否包含内部的sql代码
  *
  */
 public class IfSqlNode implements SqlNode {
+  /**
+   *  表达式计算器，用于计算条件的真假
+   * */
   private ExpressionEvaluator evaluator;
+
+  /**
+   *  Ognl表达式
+   * */
   private String test;
+
+  /**
+   *  内部的sqlNode节点
+   * */
   private SqlNode contents;
 
   public IfSqlNode(SqlNode contents, String test) {
@@ -35,7 +46,7 @@ public class IfSqlNode implements SqlNode {
 
   @Override
   public boolean apply(DynamicContext context) {
-    //如果满足条件，则apply，并返回true
+    //1. 如果 test 表达式结果为真，则将内部sql代码添加到动态上下文中
     if (evaluator.evaluateBoolean(test, context.getBindings())) {
       contents.apply(context);
       return true;

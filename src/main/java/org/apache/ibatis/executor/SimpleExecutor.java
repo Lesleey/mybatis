@@ -37,8 +37,7 @@ import org.apache.ibatis.transaction.Transaction;
  * @author Clinton Begin
  */
 /**
- * 简单执行器，这个类型不做特殊的事情，它只为每个语句创建一个PreparedStatement。
- * 大致就是：准备statement,然后设置参数，
+ * 简单执行器: 在获取预编译的sql语句时没有做任何其他的工作， 每次执行都会重新进行sql的预编译，设置参数等工作
  * 
  */
 public class SimpleExecutor extends BaseExecutor {
@@ -47,56 +46,65 @@ public class SimpleExecutor extends BaseExecutor {
     super(configuration, transaction);
   }
 
-  //修改数据。delete , update , insert
+
+  /**
+   * @param ms 解析sql语句节点所构建的对象
+   * @param parameter 参数对象
+   *    执行 update | insert | delete 语句
+   * */
   @Override
   public int doUpdate(MappedStatement ms, Object parameter) throws SQLException {
     Statement stmt = null;
     try {
       Configuration configuration = ms.getConfiguration();
-      //新建一个StatementHandler
-      //这里看到ResultHandler传入的是null
+      //1. 构建语句处理器
       StatementHandler handler = configuration.newStatementHandler(this, ms, parameter, RowBounds.DEFAULT, null, null);
-      //准备语句
+      //2. 准备要执行的 Statement 语句
       stmt = prepareStatement(handler, ms.getStatementLog());
-      //StatementHandler.update
+      //3. 执行更新
       return handler.update(stmt);
     } finally {
       closeStatement(stmt);
     }
   }
 
-  //查询数据库，并返回结果 select
+  /**
+   *  执行 select 语句
+   * */
   @Override
   public <E> List<E> doQuery(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) throws SQLException {
     Statement stmt = null;
     try {
+      //1. 准备sql，预编译，设置参数
       Configuration configuration = ms.getConfiguration();
-      //新建一个StatementHandler
-      //这里看到ResultHandler传入了
       StatementHandler handler = configuration.newStatementHandler(wrapper, ms, parameter, rowBounds, resultHandler, boundSql);
-      //准备语句
       stmt = prepareStatement(handler, ms.getStatementLog());
-      //StatementHandler.query
+      //2. 查询结果
       return handler.<E>query(stmt, resultHandler);
     } finally {
       closeStatement(stmt);
     }
   }
 
-  //刷新缓存
+  /**
+   *  刷新（执行）未执行的sql语句， 因为只有批量处理执行器会有，所有返回空
+   * */
   @Override
   public List<BatchResult> doFlushStatements(boolean isRollback) throws SQLException {
-	//doFlushStatements只是给batch用的，所以这里返回空
     return Collections.emptyList();
   }
 
-  //准备statement, 数据库直接执行的sql语句。
+
+  /**
+   *  准备要执行的sql语句： 获取连接、设置参数
+   * */
   private Statement prepareStatement(StatementHandler handler, Log statementLog) throws SQLException {
     Statement stmt;
+    //1. 通过反射，获取带日志的数据库连接
     Connection connection = getConnection(statementLog);
-    //调用StatementHandler.prepare
+    //2. 通过语句处理器准备 Statement 对象
     stmt = handler.prepare(connection);
-    //给当前preparedStatment准备参数
+    //3. 通过语句处理器设置参数
     handler.parameterize(stmt);
     return stmt;
   }

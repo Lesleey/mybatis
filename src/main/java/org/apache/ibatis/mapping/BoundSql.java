@@ -36,15 +36,34 @@ import org.apache.ibatis.session.Configuration;
  * @author Clinton Begin
  */
 /**
- * 绑定的SQL,是从SqlSource而来，将动态内容都处理完成得到的SQL语句字符串。注意：此处并没有设置参数，只是处理了动态语句
+ * 处理完所有的动态上下文之后，从 Sql源获取到的一个实际的sql代码， 该sql只包含 ? 和一个有序的参数映射
  * 
  */
 public class BoundSql {
 
+  /**
+   *  可以将进行预编译的sql语句
+   * */
   private String sql;
+
+  /**
+   *  所有的参数映射
+   * */
   private List<ParameterMapping> parameterMappings;
+
+  /**
+   *  传入的参数对象
+   * */
   private Object parameterObject;
+
+  /**
+   * 额外的参数，包括通过 bind构建的参数对象
+   * */
   private Map<String, Object> additionalParameters;
+
+  /**
+   *  参数对象对应的元对象
+   * */
   private MetaObject metaParameters;
 
   public BoundSql(Configuration configuration, String sql, List<ParameterMapping> parameterMappings, Object parameterObject) {

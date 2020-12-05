@@ -62,7 +62,7 @@ public class CglibProxyFactory implements ProxyFactory {
 
   public CglibProxyFactory() {
     try {
-      //先检查是否有Cglib
+      //检查是否包含Cglib相关的jar包
       Resources.classForName("net.sf.cglib.proxy.Enhancer");
     } catch (Throwable e) {
       throw new IllegalStateException("Cannot enable lazy loading because CGLIB is not available. Add CGLIB to your classpath.", e);
@@ -74,6 +74,9 @@ public class CglibProxyFactory implements ProxyFactory {
     return EnhancedResultObjectProxyImpl.createProxy(target, lazyLoader, configuration, objectFactory, constructorArgTypes, constructorArgs);
   }
 
+  /**
+   * todo lesleey 反序列为什么不复用 creatProxy 方法， ResultLoaderMap 为什么没有实现 Serializable 接口
+   * */
   public Object createDeserializationProxy(Object target, Map<String, ResultLoaderMap.LoadPair> unloadedProperties, ObjectFactory objectFactory, List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
     return EnhancedDeserializationProxyImpl.createProxy(target, unloadedProperties, objectFactory, constructorArgTypes, constructorArgs);
   }
@@ -83,8 +86,15 @@ public class CglibProxyFactory implements ProxyFactory {
       // Not Implemented
   }
 
+
+  /**
+   * @param type 真实类对象
+   * @param callback  回调函数（增强方法）
+   * @param constructorArgTypes 所使用的构造函数
+   * @param constructorArgs 所使用的构造参数
+   * */
   static Object crateProxy(Class<?> type, Callback callback, List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
-    //核心就是用cglib的Enhancer
+    //1. 设置 Enhancer 的基本属性
 	Enhancer enhancer = new Enhancer();
     enhancer.setCallback(callback);
     enhancer.setSuperclass(type);
@@ -97,6 +107,7 @@ public class CglibProxyFactory implements ProxyFactory {
     } catch (SecurityException e) {
       // nothing to do here
     }
+    //2. 返回代理对象
     Object enhanced = null;
     if (constructorArgTypes.isEmpty()) {
       enhanced = enhancer.create();
@@ -108,11 +119,16 @@ public class CglibProxyFactory implements ProxyFactory {
     return enhanced;
   }
 
+
   private static class EnhancedResultObjectProxyImpl implements MethodInterceptor {
 
     private Class<?> type;
     private ResultLoaderMap lazyLoader;
+
+    // 是否任一的方法都会触发懒加载
     private boolean aggressive;
+
+    // 触发懒加载的方法名称
     private Set<String> lazyLoadTriggerMethods;
     private ObjectFactory objectFactory;
     private List<Class<?>> constructorArgTypes;
@@ -136,12 +152,15 @@ public class CglibProxyFactory implements ProxyFactory {
       return enhanced;
     }
 
-    //核心就是反调intercept
+    /**
+     * 增强方法的主要逻辑
+     * */
     @Override
     public Object intercept(Object enhanced, Method method, Object[] args, MethodProxy methodProxy) throws Throwable {
       final String methodName = method.getName();
       try {
         synchronized (lazyLoader) {
+          //1. 如果调用的是 reriteReplace() 方法（方法返回值为实际序列化的对象）
           if (WRITE_REPLACE_METHOD.equals(methodName)) {
             Object original = null;
             if (constructorArgTypes.isEmpty()) {
@@ -150,18 +169,22 @@ public class CglibProxyFactory implements ProxyFactory {
               original = objectFactory.create(type, constructorArgTypes, constructorArgs);
             }
             PropertyCopier.copyBeanProperties(type, enhanced, original);
+            //1.2 如果还有未懒加载的对象， 则返回 CglibSerialStateHolder 对象，定制序列化和反序列的操作
             if (lazyLoader.size() > 0) {
               return new CglibSerialStateHolder(original, lazyLoader.getProperties(), objectFactory, constructorArgTypes, constructorArgs);
+            //1.3 如果已经不存在懒加载的属性，则直接返回原对象
             } else {
               return original;
             }
+          //2. 如果调用的是其他的方法
           } else {
-        	//这里是关键，延迟加载就是调用ResultLoaderMap.loadAll()
+            //2.1 如果还存在未懒加载的属性，而且调用的不是 finalize() 方法
             if (lazyLoader.size() > 0 && !FINALIZE_METHOD.equals(methodName)) {
+              //2.1.1 如果触发了懒加载，则加载全部懒加载属性
               if (aggressive || lazyLoadTriggerMethods.contains(methodName)) {
                 lazyLoader.loadAll();
+              //2.1.2 如果调用的是其他方法， 获取该方法的属性，并尝试对该属性进行懒加载
               } else if (PropertyNamer.isProperty(methodName)) {
-              	//或者调用ResultLoaderMap.load()
                 final String property = PropertyNamer.methodToProperty(methodName);
                 if (lazyLoader.hasLoader(property)) {
                   lazyLoader.load(property);
@@ -170,6 +193,7 @@ public class CglibProxyFactory implements ProxyFactory {
             }
           }
         }
+        //3. 其他方法直接执行
         return methodProxy.invokeSuper(enhanced, args);
       } catch (Throwable t) {
         throw ExceptionUtil.unwrapThrowable(t);

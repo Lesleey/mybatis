@@ -37,14 +37,19 @@ import org.apache.ibatis.reflection.factory.ObjectFactory;
 /**
  * @author Eduardo Macarron
  * @author Franta Mejta
- * 抽象的反序列化
+ *    模板方法模式： 通过重写 readExternal()、writeExternal()方法定制自定义的序列化和反序列方式
+ *    todo lesleey userBeanBytes 的作用 ？
  */
 public abstract class AbstractSerialStateHolder implements Externalizable {
 
   private static final long serialVersionUID = 8940388717901644661L;
   private static final ThreadLocal<ObjectOutputStream> stream = new ThreadLocal<ObjectOutputStream>();
   private byte[] userBeanBytes = new byte[0];
+
+  // 原始对象
   private Object userBean;
+
+  // 所有未加载的属性
   private Map<String, ResultLoaderMap.LoadPair> unloadedProperties;
   private ObjectFactory objectFactory;
   private Class<?>[] constructorArgTypes;
@@ -66,6 +71,9 @@ public abstract class AbstractSerialStateHolder implements Externalizable {
     this.constructorArgs = constructorArgs.toArray(new Object[constructorArgs.size()]);
   }
 
+  /**
+   *  自定义序列化
+   * */
   @Override
   public final void writeExternal(final ObjectOutput out) throws IOException {
     boolean firstRound = false;
@@ -101,6 +109,9 @@ public abstract class AbstractSerialStateHolder implements Externalizable {
     }
   }
 
+  /**
+   *  对单例模式的兼容，返回值用于代替 readExternal（或readObject） 方法的返回值作为反序列化的结果
+   * */
   @SuppressWarnings("unchecked")
   protected final Object readResolve() throws ObjectStreamException {
     /* Second run */
@@ -129,6 +140,9 @@ public abstract class AbstractSerialStateHolder implements Externalizable {
     return this.createDeserializationProxy(userBean, arrayProps, objectFactory, arrayTypes, arrayValues);
   }
 
+  /**
+   *  实际上再次生成代理类
+   * */
   protected abstract Object createDeserializationProxy(Object target, Map<String, ResultLoaderMap.LoadPair> unloadedProperties, ObjectFactory objectFactory,
           List<Class<?>> constructorArgTypes, List<Object> constructorArgs);
 }

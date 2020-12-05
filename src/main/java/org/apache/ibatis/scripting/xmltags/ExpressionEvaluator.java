@@ -27,40 +27,45 @@ import org.apache.ibatis.builder.BuilderException;
  * @author Clinton Begin
  */
 /**
- * 表达式求值器
- * 可参考ExpressionEvaluatorTest
+ *  表达式求值器
  */
 public class ExpressionEvaluator {
 
-  //表达式求布尔值，比如username == 'cbegin'
+  /**
+   *  解析表达式返回的布尔值, 用于动态 <sql/> 节点, 例如 params.key != null
+   * */
   public boolean evaluateBoolean(String expression, Object parameterObject) {
-	//非常简单，就是调用ognl
+    //1. 获取表达式的值
     Object value = OgnlCache.getValue(expression, parameterObject);
+    //2. 如果为布尔类型，进行类型转换
     if (value instanceof Boolean) {
-      //如果是Boolean
       return (Boolean) value;
     }
+    //3. 如果为数值类型，不为0，则为true
     if (value instanceof Number) {
-        //如果是Number，判断不为0
         return !new BigDecimal(String.valueOf(value)).equals(BigDecimal.ZERO);
     }
-    //否则判断不为null
+    //4. 如果为其他类型，不为null，则为true
     return value != null;
   }
 
-  //解析表达式到一个Iterable,核心是ognl
+    /**
+     *  解析表达式，获取集合， 用于 <forEach/> 节点，例如 collection = "array"
+     * */
   public Iterable<?> evaluateIterable(String expression, Object parameterObject) {
-	//原生的ognl很强大，OgnlCache.getValue直接就可以返回一个Iterable型或数组型或Map型了
+    //1. 获取表达式的值
     Object value = OgnlCache.getValue(expression, parameterObject);
+    //2. 如果为null, 抛出异常
     if (value == null) {
       throw new BuilderException("The expression '" + expression + "' evaluated to a null value.");
     }
+    //3. 如果集合，则直接返回
     if (value instanceof Iterable) {
       return (Iterable<?>) value;
     }
+    //4.如果为数组，则新建一个集合，返回
     if (value.getClass().isArray()) {
-    	//如果是array，则把他变成一个List<Object>
-    	//注释下面提到了，不能用Arrays.asList()，因为array可能是基本型，这样会出ClassCastException，
+    	//不能用Arrays.asList()，因为array可能是基本型，这样会出ClassCastException，
     	//见https://code.google.com/p/ibatis/issues/detail?id=209
         // the array may be primitive, so Arrays.asList() may throw
         // a ClassCastException (issue 209).  Do the work manually
@@ -73,6 +78,7 @@ public class ExpressionEvaluator {
         }
         return answer;
     }
+    //5. 如果为map，则返回对应的 map.entry集合
     if (value instanceof Map) {
       return ((Map) value).entrySet();
     }

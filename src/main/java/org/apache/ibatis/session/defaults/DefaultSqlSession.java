@@ -52,13 +52,24 @@ import org.apache.ibatis.session.SqlSession;
  */
 public class DefaultSqlSession implements SqlSession {
 
+  /**
+   *  全局配置类
+   * */
   private Configuration configuration;
+
+  /**
+   *  执行器实例
+   * */
   private Executor executor;
 
   /**
    * 是否自动提交
    */
   private boolean autoCommit;
+
+  /**
+   *  是否有脏数据
+   * */
   private boolean dirty;
   
   public DefaultSqlSession(Configuration configuration, Executor executor, boolean autoCommit) {
@@ -77,18 +88,21 @@ public class DefaultSqlSession implements SqlSession {
     return this.<T>selectOne(statement, null);
   }
 
-  //核心selectOne
+  /**
+   *  查询一条记录
+   * */
   @Override
   public <T> T selectOne(String statement, Object parameter) {
     // Popular vote was to return null on 0 results and throw exception on too many.
-    //转而去调用selectList,很简单的，如果得到0条则返回null，得到1条则返回1条，得到多条报TooManyResultsException错
-    // 特别需要主要的是当没有查询到结果的时候就会返回null。因此一般建议在mapper中编写resultType的时候使用包装类型
-    //而不是基本类型，比如推荐使用Integer而不是int。这样就可以避免NPE
+    //1. 调用 selectList 方法查询结果
     List<T> list = this.<T>selectList(statement, parameter);
+    //2. 如果结果只有一条，则返回该条数据
     if (list.size() == 1) {
       return list.get(0);
+    //3. 如果结果有多条，抛出 TooManyResultException
     } else if (list.size() > 1) {
       throw new TooManyResultsException("Expected one result (or null) to be returned by selectOne(), but found: " + list.size());
+    //4. 如果为空集合，则返回null
     } else {
       return null;
     }
@@ -104,20 +118,22 @@ public class DefaultSqlSession implements SqlSession {
     return this.selectMap(statement, parameter, mapKey, RowBounds.DEFAULT);
   }
 
-  //核心selectMap
+  /**
+   *  查询记录，返回值为 map 类型
+   * */
   @Override
   public <K, V> Map<K, V> selectMap(String statement, Object parameter, String mapKey, RowBounds rowBounds) {
-    //转而去调用selectList
+    //1. 调用 selectList 方法查询结果
     final List<?> list = selectList(statement, parameter, rowBounds);
+    //2. 构建 Map 结果处理器, 处理返回的 list 集合
     final DefaultMapResultHandler<K, V> mapResultHandler = new DefaultMapResultHandler<K, V>(mapKey,
         configuration.getObjectFactory(), configuration.getObjectWrapperFactory());
     final DefaultResultContext context = new DefaultResultContext();
     for (Object o : list) {
-      //循环用DefaultMapResultHandler处理每条记录
       context.nextResultObject(o);
       mapResultHandler.handleResult(context);
     }
-    //注意这个DefaultMapResultHandler里面存了所有已处理的记录(内部实现可能就是一个Map)，最后再返回一个Map
+    //3. 返回最终的结果 @MapKey 指定的 Ognl表达式的值作为key, 该条记录的解析结果作为值
     return mapResultHandler.getMappedResults();
   }
 
@@ -131,13 +147,15 @@ public class DefaultSqlSession implements SqlSession {
     return this.selectList(statement, parameter, RowBounds.DEFAULT);
   }
 
-  //核心selectList
+  /**
+   *  核心方法： 所有的查询方法(不带 ResultHandler 类型的参数)实际上都委托给该方法
+   * */
   @Override
   public <E> List<E> selectList(String statement, Object parameter, RowBounds rowBounds) {
     try {
-      //根据statement id找到对应的MappedStatement
+      //1. 获取 当前执行的sql语句对应的 MappedStatement 对象
       MappedStatement ms = configuration.getMappedStatement(statement);
-      //转而用执行器来查询结果,注意这里传入的ResultHandler是null
+      //2. 通过执行器查询结果
       return executor.query(ms, wrapCollection(parameter), rowBounds, Executor.NO_RESULT_HANDLER);
     } catch (Exception e) {
       throw ExceptionFactory.wrapException("Error querying database.  Cause: " + e, e);
@@ -176,7 +194,6 @@ public class DefaultSqlSession implements SqlSession {
 
   @Override
   public int insert(String statement, Object parameter) {
-    //insert也是调用update
     return update(statement, parameter);
   }
 
@@ -185,14 +202,18 @@ public class DefaultSqlSession implements SqlSession {
     return update(statement, null);
   }
 
-  //核心update
+  /**
+   *  insert | delete | update 语句都会调用该方法
+   * @param statement sql 语句节点标识的唯一标识
+   * @param parameter 传入的参数
+   * */
   @Override
   public int update(String statement, Object parameter) {
     try {
-      //每次要更新之前，dirty标志设为true
+      //1. 标记 dirty 为true, 表示有脏数据
       dirty = true;
       MappedStatement ms = configuration.getMappedStatement(statement);
-      //转而用执行器来update结果
+      //2. 通过执行器执行更新
       return executor.update(ms, wrapCollection(parameter));
     } catch (Exception e) {
       throw ExceptionFactory.wrapException("Error updating database.  Cause: " + e, e);
@@ -203,7 +224,6 @@ public class DefaultSqlSession implements SqlSession {
 
   @Override
   public int delete(String statement) {
-    //delete也是调用update
     return update(statement, null);
   }
 
@@ -283,9 +303,11 @@ public class DefaultSqlSession implements SqlSession {
     return configuration;
   }
 
+  /**
+   * 获取dao类对应的动态代理方法，使得调用接口的方法时调用 mapper 文件对应的sql语句
+   * */
   @Override
   public <T> T getMapper(Class<T> type) {
-    //最后会去调用MapperRegistry.getMapper
     return configuration.<T>getMapper(type, this);
   }
 
@@ -310,28 +332,32 @@ public class DefaultSqlSession implements SqlSession {
     return (!autoCommit && dirty) || force;
   }
 
-  //包装参数
+  /**
+   *  如果参数为集合，则通过map进行包装，否则直接返回
+   *    1. 如果参数为 Collection类型，map的key: "collection"
+   *    2. 如果参数为 List 类型, key: "list"
+   *    3. 如果参数为 数组， key:"array"
+   *    value: 为参数的值
+   * */
   private Object wrapCollection(final Object object) {
     if (object instanceof Collection) {
-      //参数若是Collection型，做collection标记
       StrictMap<Object> map = new StrictMap<Object>();
       map.put("collection", object);
       if (object instanceof List) {
-        //参数若是List型，做list标记
         map.put("list", object);
       }
       return map;      
     } else if (object != null && object.getClass().isArray()) {
-      //参数若是数组型，，做array标记
       StrictMap<Object> map = new StrictMap<Object>();
       map.put("array", object);
       return map;
     }
-    //参数若不是集合型，直接返回原来值
     return object;
   }
 
-  //严格的Map，如果找不到对应的key，直接抛BindingException例外，而不是返回null
+  /**
+   *  自定义的map， 如果找不到对应的key,直接抛出异常
+   * */
   public static class StrictMap<V> extends HashMap<String, V> {
 
     private static final long serialVersionUID = -5741767162221585340L;

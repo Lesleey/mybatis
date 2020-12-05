@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
  * @author Clinton Begin
  */
 /**
- * setter调用者
+ * setter调用者: 通过反射，向某个对象的某个字段赋值
  * 
  */
 public class SetFieldInvoker implements Invoker {
@@ -32,7 +32,6 @@ public class SetFieldInvoker implements Invoker {
     this.field = field;
   }
 
-  //就是调用Field.set
   @Override
   public Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException {
     field.set(target, args[0]);

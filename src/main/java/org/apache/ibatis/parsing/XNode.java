@@ -105,26 +105,27 @@ public class XNode {
     return builder.toString();
   }
 
-	//取得标示符   ("resultMap[authorResult]")
-	//XMLMapperBuilder.resultMapElement调用
-//	<resultMap id="authorResult" type="Author">
-//	  <id property="id" column="author_id"/>
-//	  <result property="username" column="author_username"/>
-//	  <result property="password" column="author_password"/>
-//	  <result property="email" column="author_email"/>
-//	  <result property="bio" column="author_bio"/>
-//	</resultMap>
+  /**
+   *  取得当前 xNode的相对于根节点的路径表示（唯一），
+   *  <mapper id="mapper">
+   *      <curnode id="node.node"></curnode>
+   *  </mapper>
+   *    返回值为 mapper[mapper]_curnode[node/node]_
+   * */
   public String getValueBasedIdentifier() {
     StringBuilder builder = new StringBuilder();
     XNode current = this;
+    //1. 向上遍历，直到 当前节点为空
     while (current != null) {
+      //2. 增加分割符 "_"
       if (current != this) {
         builder.insert(0, "_");
       }
-      //先拿id，拿不到再拿value,再拿不到拿property
+      //3. 获取节点的值，按照 id, value, property顺序进行获取，直到一个非空，如果都不能存在，则为 null
       String value = current.getStringAttribute("id",
           current.getStringAttribute("value",
               current.getStringAttribute("property", null)));
+      //4. 将所有的 "." 替换为为 "_", 并使用 中括号"[]"括起来
       if (value != null) {
         value = value.replace('.', '_');
         builder.insert(0, "]");
@@ -132,6 +133,7 @@ public class XNode {
             value);
         builder.insert(0, "[");
       }
+      //5. 向头部插入节点名称，并向上遍历
       builder.insert(0, current.getName());
       current = current.getParent();
     }
@@ -258,6 +260,11 @@ public class XNode {
     return getStringAttribute(name, null);
   }
 
+  /**
+   * @param name 属性名
+   * @param def 默认值
+   *   从自定义的属性中获取对应的属性名，如果不存在返回 def
+   * */
   public String getStringAttribute(String name, String def) {
     String value = attributes.getProperty(name);
     if (value == null) {

@@ -41,18 +41,21 @@ public class XMLLanguageDriver implements LanguageDriver {
 
   @Override
   public ParameterHandler createParameterHandler(MappedStatement mappedStatement, Object parameterObject, BoundSql boundSql) {
-    //返回默认的参数处理器
 	return new DefaultParameterHandler(mappedStatement, parameterObject, boundSql);
   }
-  //一般使用两种DynmicSqlSource和RawSqlSource
+
+  /**
+   *  通过xml方式构建 SqlSource
+   * */
   @Override
   public SqlSource createSqlSource(Configuration configuration, XNode script, Class<?> parameterType) {
-	//用XML脚本构建器解析该sql节点，创建sqlSource
     XMLScriptBuilder builder = new XMLScriptBuilder(configuration, script, parameterType);
     return builder.parseScriptNode();
   }
 
-  //注解方式构建mapper，一般不用，可以暂时忽略
+  /**
+   *  注解方式构建 SqlSource
+   * */
   @Override
   public SqlSource createSqlSource(Configuration configuration, String script, Class<?> parameterType) {
     // issue #3
@@ -63,7 +66,6 @@ public class XMLLanguageDriver implements LanguageDriver {
       // issue #127
       script = PropertyParser.parse(script, configuration.getVariables());
       TextSqlNode textSqlNode = new TextSqlNode(script);
-      //一种是动态，一种是原始
       if (textSqlNode.isDynamic()) {
         return new DynamicSqlSource(configuration, textSqlNode);
       } else {

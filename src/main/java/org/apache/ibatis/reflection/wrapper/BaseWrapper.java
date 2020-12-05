@@ -27,11 +27,10 @@ import org.apache.ibatis.reflection.property.PropertyTokenizer;
  * @author Clinton Begin
  */
 /**
- * 对象包装器的基类
+ * 对象包装器的基类，模板方法模式：用以提供一些公共的方法
  * 
  */
 public abstract class BaseWrapper implements ObjectWrapper {
-    //什么方法都没实现，只提供了一些util方法
 
   protected static final Object[] NO_ARGUMENTS = new Object[0];
   protected MetaObject metaObject;
@@ -40,21 +39,31 @@ public abstract class BaseWrapper implements ObjectWrapper {
     this.metaObject = metaObject;
   }
 
-  //解析集合
+  /**
+   * @param prop  表达式对应的分词器
+   * @param object 对象
+   *    根据解析表达式获取到的分词器获取对象中的属性的值, 只针对对集合的操作
+   *      解析 分词器中 name 对应的值
+   * */
   protected Object resolveCollection(PropertyTokenizer prop, Object object) {
+    //1. 如果 name 为空，则表示该对象就为集合，例如表达式为 [0],则直接返回该对象,
     if ("".equals(prop.getName())) {
       return object;
+    //2. 否则，则可能集合为该对象的一个属性，例如表达式为 child[0]
     } else {
       return metaObject.getValue(prop.getName());
     }
   }
 
-  //取集合的值
-  //中括号有2个意思，一个是Map，一个是List或数组
+  /**
+   *  根据分词器获取实际（indexName）的值
+   *    解析 分词器中  index 对应的值
+   * */
   protected Object getCollectionValue(PropertyTokenizer prop, Object collection) {
+    //1. 如果集合为 map， 则 index 为 key
     if (collection instanceof Map) {
-        //map['name']
       return ((Map) collection).get(prop.getIndex());
+    //2. 如果为其他的集合类型，则 index 为索引
     } else {
       int i = Integer.parseInt(prop.getIndex());
       if (collection instanceof List) {
@@ -84,11 +93,17 @@ public abstract class BaseWrapper implements ObjectWrapper {
     }
   }
 
-  //设集合的值
-  //中括号有2个意思，一个是Map，一个是List或数组
+  /**
+   * @param prop 表达式对应的分词器
+   * @param collection 具体的对象
+   * @param value
+   *   通过表达式给对象赋值
+   * */
   protected void setCollectionValue(PropertyTokenizer prop, Object collection, Object value) {
+    //1. 如果集合类型为 map，则 index 为 key
     if (collection instanceof Map) {
       ((Map) collection).put(prop.getIndex(), value);
+    //2. 否则， index 为索引
     } else {
       int i = Integer.parseInt(prop.getIndex());
       if (collection instanceof List) {

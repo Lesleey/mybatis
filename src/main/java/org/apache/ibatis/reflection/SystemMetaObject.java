@@ -27,8 +27,7 @@ import org.apache.ibatis.reflection.wrapper.ObjectWrapperFactory;
  * @author Clinton Begin
  */
 /**
- * 一些系统级别的元对象，帮我们封装了一个获取MetaObject的简单方式，使用默认的对象工厂，和对象包装工厂
- *
+ *  帮我们封装了一个获取MetaObject的简单方式，使用默认的对象工厂，和对象包装工厂
  */
 public final class SystemMetaObject {
 

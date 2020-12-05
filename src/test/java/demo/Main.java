@@ -28,10 +28,8 @@ public class Main {
         try {
             sqlSession=sqlSessionFactory.openSession();
             PeopleDao peopleDao=sqlSession.getMapper(PeopleDao.class);
-            peopleDao.queryAll().forEach(System.out::println);
-
+            peopleDao.getAllUsers().forEach(System.out::println);
             sqlSession.commit();
-
         } catch (Exception e) {
             // TODO Auto-generated catch block
             sqlSession.rollback();

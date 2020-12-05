@@ -194,9 +194,15 @@ public class Configuration {
    *  类型别名注册器 ： 存储java类型和对应的别名
    * */
   protected final TypeAliasRegistry typeAliasRegistry = new TypeAliasRegistry();
+
+  /**
+   *  语言驱动注册器： 获取 sql 源
+   * */
   protected final LanguageDriverRegistry languageRegistry = new LanguageDriverRegistry();
 
-  //映射的语句,存在Map里
+  /**
+   * key: sql语句节点中指定的id + 命名空间前缀, value: 解析 sql语句节点获取的 MappedStatment对象
+   * */
   protected final Map<String, MappedStatement> mappedStatements = new StrictMap<MappedStatement>("Mapped Statements collection");
 
   /**
@@ -204,18 +210,35 @@ public class Configuration {
    * */
   protected final Map<String, Cache> caches = new StrictMap<Cache>("Caches collection");
   //结果映射,存在Map里
+  /**
+   *  key: resultMap的唯一标识, 可以通过<resultMap/>节点的id属性的值设值
+   *  value:  通过解析<resultMap/>的所有属性获取到的 ResultMap对象
+   * */
   protected final Map<String, ResultMap> resultMaps = new StrictMap<ResultMap>("Result Maps collection");
   protected final Map<String, ParameterMap> parameterMaps = new StrictMap<ParameterMap>("Parameter Maps collection");
+
+  /**
+   *  key: KeyGenerator对应的唯一标识，由所属的 sql语句节点的id和固定的后缀组成，用于方便寻找执行该sql语句时，所使用的键值生成器
+   *  value:  主键生成器对象
+   * */
   protected final Map<String, KeyGenerator> keyGenerators = new StrictMap<KeyGenerator>("Key Generators collection");
 
   /**
    *  加载完成的资源名称
    * */
   protected final Set<String> loadedResources = new HashSet<String>();
+
+  /**
+   *  存储所有的 <sql/> 节点， key: id, value: <sql/> 节点
+   * */
   protected final Map<String, XNode> sqlFragments = new StrictMap<XNode>("XML fragments parsed from previous mappers");
 
   //不完整的SQL语句
   protected final Collection<XMLStatementBuilder> incompleteStatements = new LinkedList<XMLStatementBuilder>();
+
+  /**
+   *  未解析完成的节点
+   * */
   protected final Collection<CacheRefResolver> incompleteCacheRefs = new LinkedList<CacheRefResolver>();
   protected final Collection<ResultMapResolver> incompleteResultMaps = new LinkedList<ResultMapResolver>();
   protected final Collection<MethodResolver> incompleteMethods = new LinkedList<MethodResolver>();
@@ -545,11 +568,13 @@ public class Configuration {
     return resultSetHandler;
   }
 
-  //创建语句处理器
+  /**
+   *  根据执行的语句类型 {@link org.apache.ibatis.mapping.StatementType}，构建不同的语句处理器
+   * */
   public StatementHandler newStatementHandler(Executor executor, MappedStatement mappedStatement, Object parameterObject, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) {
-    //创建路由选择语句处理器
+    //1. 创建路由 选择语句处理器
     StatementHandler statementHandler = new RoutingStatementHandler(executor, mappedStatement, parameterObject, rowBounds, resultHandler, boundSql);
-    //插件在这里插入
+    //2. 使用拦截器链进行包装
     statementHandler = (StatementHandler) interceptorChain.pluginAll(statementHandler);
     return statementHandler;
   }
@@ -558,13 +583,17 @@ public class Configuration {
     return newExecutor(transaction, defaultExecutorType);
   }
 
-  //产生执行器
+  /**
+   * @param transaction 事务对象（用于对数据库连接的提交和回滚操作）
+   * @param executorType 执行器类型
+   *
+   * */
   public Executor newExecutor(Transaction transaction, ExecutorType executorType) {
+    //1. 设置默认的执行器类型
     executorType = executorType == null ? defaultExecutorType : executorType;
-    //这句再做一下保护,设置默认的执行器
     executorType = executorType == null ? ExecutorType.SIMPLE : executorType;
     Executor executor;
-    //然后就是简单的3个分支，产生3种执行器BatchExecutor/ReuseExecutor/SimpleExecutor
+    //2. 根据执行器类型构建执行器对象
     if (ExecutorType.BATCH == executorType) {
       executor = new BatchExecutor(this, transaction);
     } else if (ExecutorType.REUSE == executorType) {
@@ -572,11 +601,11 @@ public class Configuration {
     } else {
       executor = new SimpleExecutor(this, transaction);
     }
-    //如果要求缓存，生成另一种CachingExecutor(默认就是有缓存),装饰者模式,所以默认都是返回CachingExecutor
+    //3. 如果全局性的开启缓存，则使用装饰者模式为执行器增加缓存的功能
     if (cacheEnabled) {
       executor = new CachingExecutor(executor);
     }
-    //此处调用插件,通过插件可以改变Executor行为
+    //4. 使用插件链对当前执行器对象进行包装（比如分页插件）
     executor = (Executor) interceptorChain.pluginAll(executor);
     return executor;
   }
@@ -770,6 +799,9 @@ public class Configuration {
    * Parses all the unprocessed statement nodes in the cache. It is recommended
    * to call this method once all the mappers are added as it provides fail-fast
    * statement validation.
+   *   解析所有未处理完成的语句节点，该方法被所有的mapper文件被解析之后调用，它提供了一个快速失败的语句验证
+   * 只要任一的mapper文件没有解析完成，解析时如果抛出 IncompletedElementException，会捕获该异常，并将该解析器记录在全局的配置类中，当所有的mapper文件被解析之后，会重新
+   * 调用这些解析方法，此时如果抛出 IncompletedElementException 将会向上抛出
    */
   protected void buildAllStatements() {
     if (!incompleteResultMaps.isEmpty()) {
@@ -810,6 +842,10 @@ public class Configuration {
   }
 
   // Slow but a one time cost. A better solution is welcome.
+  /**
+   * @param rm 当前解析完成的ResultMap 对象
+   *     判断 cnofiguration 对象中所有已经解析完成的 ResultMap 的映射里是否引用了 当前的 ResultMap， 如果引用了，则标记对应的 ResultMap 包含内嵌的 ResultMap
+   * */
   protected void checkGloballyForDiscriminatedNestedResultMaps(ResultMap rm) {
     if (rm.hasNestedResultMaps()) {
       for (Map.Entry<String, ResultMap> entry : resultMaps.entrySet()) {
@@ -828,6 +864,10 @@ public class Configuration {
   }
 
   // Slow but a one time cost. A better solution is welcome.
+  /**
+   * @param rm 当前解析完成的 ResultMap 对象
+   *       判断当前的 ResultMap 是否包含内嵌的 ResultMap 对象。 如果当前ResultMap 有鉴别器，则判断鉴别器内部是否包含内嵌的ResultMap 对象
+   * */
   protected void checkLocallyForDiscriminatedNestedResultMaps(ResultMap rm) {
     if (!rm.hasNestedResultMaps() && rm.getDiscriminator() != null) {
       for (Map.Entry<String, String> entry : rm.getDiscriminator().getDiscriminatorMap().entrySet()) {

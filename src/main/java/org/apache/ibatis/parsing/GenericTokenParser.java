@@ -24,10 +24,19 @@ package org.apache.ibatis.parsing;
  */
 public class GenericTokenParser {
 
-  //有一个开始和结束记号
+  /**
+   *  开始记号
+   * */
   private final String openToken;
+
+  /**
+   *   结束记号
+   * */
   private final String closeToken;
-  //记号处理器
+
+  /**
+   *   记号处理器
+   * */
   private final TokenHandler handler;
 
   public GenericTokenParser(String openToken, String closeToken, TokenHandler handler) {
@@ -35,33 +44,37 @@ public class GenericTokenParser {
     this.closeToken = closeToken;
     this.handler = handler;
   }
-  // text :  delete * from role where id = #{id}
+
+  /**
+   *  将开始记号和结束记号之间的内容使用指定的记号处理器进行处理，并将处理后的内容替换之间的内容
+   * */
   public String parse(String text) {
     StringBuilder builder = new StringBuilder();
     if (text != null && text.length() > 0) {
       char[] src = text.toCharArray();
+      //1. 记录当前已经解析到的位置
       int offset = 0;
-      int start = text.indexOf(openToken, offset);  //获取offset下标之后，openToken的在text中出现的下标。
-      //#{favouriteSection,jdbcType=VARCHAR}
-      //这里是循环解析参数，参考GenericTokenParserTest,比如可以解析${first_name} ${initial} ${last_name} reporting.这样的字符串,里面有3个 ${}
+      //2. 记录还未解析的位置
+      int start = text.indexOf(openToken, offset);
+      //3. 循环进行解析，直到 text offset之后没有开始记号
       while (start > -1) {
-    	  //判断一下 ${ 前面是否是反斜杠，意思是之前有没有转义字符
+        //3.1 如果开始记号之前是转义符，直接将 text中 offset到结束标记中间的字符和结束标记添加到 builder 中
         if (start > 0 && src[start - 1] == '\\') {
-          // the variable is escaped. remove the backslash.
-      	  //新版已经没有调用substring了，改为调用如下的offset方式，提高了效率
           //issue #760
           builder.append(src, offset, start - offset - 1).append(openToken);
           offset = start + openToken.length();
+        //3.2 开始解析过程
         } else {
           int end = text.indexOf(closeToken, start);
+           //3.2.1 如果没有结束符，则直接将 text 中所有的字符添加到 builder 中
           if (end == -1) {
             builder.append(src, offset, src.length - offset);
             offset = src.length;
+           //3.2.2 使用记号处理器处理标记之前的内容，并进行替换
           } else {
             builder.append(src, offset, start - offset);
             offset = start + openToken.length();
             String content = new String(src, offset, end - offset);
-            //得到一对大括号里的字符串后，调用handler.handleToken,比如替换变量这种功能
             builder.append(handler.handleToken(content));
             offset = end + closeToken.length();
           }

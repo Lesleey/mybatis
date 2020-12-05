@@ -37,7 +37,7 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  * @author Eduardo Macarron
  */
 /**
- * 默认参数处理器，设置要执行sql语句的参数
+ * 默认参数处理器，设置将要执行sql语句的参数
  * 
  */
 public class DefaultParameterHandler implements ParameterHandler {
@@ -61,39 +61,40 @@ public class DefaultParameterHandler implements ParameterHandler {
     return parameterObject;
   }
 
-  //给preparedStatment设置参数
+  /**
+   *  通过类型处理器为预编译的sql设置参数
+   * */
   @Override
   public void setParameters(PreparedStatement ps) throws SQLException {
     ErrorContext.instance().activity("setting parameters").object(mappedStatement.getParameterMap().getId());
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
     if (parameterMappings != null) {
-      //循环设参数
+      // 遍历参数映射集合为 sql 语句设置参数
       for (int i = 0; i < parameterMappings.size(); i++) {
         ParameterMapping parameterMapping = parameterMappings.get(i);
         if (parameterMapping.getMode() != ParameterMode.OUT) {
-          //如果不是OUT，才设进去
           Object value;
           String propertyName = parameterMapping.getProperty();
+          //1. 如果额外参数(bind)中包含该属性，则从额外参数中获取属性对应的值
           if (boundSql.hasAdditionalParameter(propertyName)) { // issue #448 ask first for additional params
-            //若有额外的参数, 设为额外的参数
             value = boundSql.getAdditionalParameter(propertyName);
+          //2. 如果传入的参数对象为空，则值为空
           } else if (parameterObject == null) {
-            //若参数为null，直接设null
             value = null;
+           //3. 如果有处理参数类型的类型处理器，则值为传入的参数对象
           } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
-            //若参数有相应的TypeHandler，直接设object
             value = parameterObject;
+           //4. 否则，获取参数对象中属性名称对应的值
           } else {
-            //除此以外，MetaObject.getValue反射取得值设进去
             MetaObject metaObject = configuration.newMetaObject(parameterObject);
             value = metaObject.getValue(propertyName);
           }
           TypeHandler typeHandler = parameterMapping.getTypeHandler();
           JdbcType jdbcType = parameterMapping.getJdbcType();
           if (value == null && jdbcType == null) {
-            //不同类型的set方法不同，所以委派给子类的setParameter方法
             jdbcType = configuration.getJdbcTypeForNull();
           }
+          //5. 获取对应的类型处理器，为预编译的sql设置值
           typeHandler.setParameter(ps, i + 1, value, jdbcType);
         }
       }

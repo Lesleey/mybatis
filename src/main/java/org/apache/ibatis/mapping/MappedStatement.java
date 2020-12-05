@@ -42,35 +42,89 @@ import org.apache.ibatis.session.Configuration;
  */
 public final class MappedStatement {
 
+  /**
+   *  当前 语句所属的 mapper 文件的资源路径
+   * */
   private String resource;  //来自那个xml文件
+
+  /**
+   *  全局配置类
+   * */
   private Configuration configuration;  //mybatis的配置类
-  private String id;  //sql语句的id和namespace合成的id
-  private Integer fetchSize;  //从数据库获取的记录数
-  private Integer timeout;  //超时时间
-  private StatementType statementType;  //语句类型包括预编译/直接执行/调用存储过程三种
-  private ResultSetType resultSetType;  //
-  private SqlSource sqlSource;  //sql语句
-  private Cache cache;  //当前语句使用的缓存
+
+  /**
+   *  sql语句的id和namespace合成的id
+   * */
+  private String id;
+
+  /**
+   * 从数据库中获取的记录数
+   * */
+  private Integer fetchSize;
+
+  /**
+   *  执行 sql 语句的超时时间
+   * */
+  private Integer timeout;
+
+  /**
+   * sql语句的类型 STATEMENT(普通语句)、 PREPARED（预编译语句）、 CALLABLE（sql函数）
+   * */
+  private StatementType statementType;
+
+  /**
+   *  结果集类型
+   * */
+  private ResultSetType resultSetType;
+
+  /**
+   *  通过该节点内部对应的 sql 代码构建的 SqlSource
+   * */
+  private SqlSource sqlSource;
+
+  /**
+   *  当前 sql语句节点所使用的缓存
+   * */
+  private Cache cache;
   private ParameterMap parameterMap;
   private List<ResultMap> resultMaps;
   private boolean flushCacheRequired;
   private boolean useCache;
   private boolean resultOrdered;
-  private SqlCommandType sqlCommandType;  //sql命令类型 select/update/insert/delete/unkown
-  private KeyGenerator keyGenerator;  //主键生成器
-  private String[] keyProperties; //映射的enttiy属性
-  private String[] keyColumns;  //映射的table列的类型
-  private boolean hasNestedResultMaps;  //是否包括内嵌resultMap
-  private String databaseId;  //当前的databaseId
-  private Log statementLog;  //日志
-  private LanguageDriver lang;  //语言驱动器，默认为xml语言驱动器，主要是解析动态sql。
+
+  /**
+   * sql命令类型 select/update/insert/delete/unkown
+   * */
+  private SqlCommandType sqlCommandType;
+
+  /**
+   *  主键生成器
+   * */
+  private KeyGenerator keyGenerator;
+
+  /**
+   * 键值生成器所指定的映射的enttiy属性
+   * */
+  private String[] keyProperties;
+
+  /**
+   * 键值生成器所指定的映射的数据库结果集列名
+   * */
+  private String[] keyColumns;
+  private boolean hasNestedResultMaps;
+  private String databaseId;
+  private Log statementLog;
+  private LanguageDriver lang;
+
+  /**
+   *  如果返回多个结果集，则为每个结果集指定的名字
+   * */
   private String[] resultSets;
 
   MappedStatement() {
     // constructor disabled
   }
 
-  //静态内部类，建造者模式
   public static class Builder {
     private MappedStatement mappedStatement = new MappedStatement();
 
@@ -287,9 +341,8 @@ public final class MappedStatement {
   }
   
   public BoundSql getBoundSql(Object parameterObject) {
-	//其实就是调用sqlSource.getBoundSql
+    //1. 通过sql源获取绑定sql
     BoundSql boundSql = sqlSource.getBoundSql(parameterObject);
-    //剩下的可以暂时忽略
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
     if (parameterMappings == null || parameterMappings.isEmpty()) {
       boundSql = new BoundSql(configuration, boundSql.getSql(), parameterMap.getParameterMappings(), parameterObject);

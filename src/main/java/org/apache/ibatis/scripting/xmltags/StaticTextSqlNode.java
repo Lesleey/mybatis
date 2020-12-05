@@ -22,6 +22,10 @@ package org.apache.ibatis.scripting.xmltags;
  * 静态文本SQL节点
  */
 public class StaticTextSqlNode implements SqlNode {
+
+  /**
+   *  该节点对应的文本内容
+   * */
   private String text;
 
   public StaticTextSqlNode(String text) {
@@ -30,7 +34,6 @@ public class StaticTextSqlNode implements SqlNode {
 
   @Override
   public boolean apply(DynamicContext context) {
-	//将文本加入context
     context.appendSql(text);
     return true;
   }

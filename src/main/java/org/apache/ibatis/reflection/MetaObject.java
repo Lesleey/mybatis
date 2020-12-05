@@ -34,14 +34,29 @@ import org.apache.ibatis.reflection.wrapper.ObjectWrapperFactory;
  * @author Clinton Begin
  */
 /**
- * 元对象,各种get，set方法有点ognl表达式的味道
+ * 元对象
  *
  */
 public class MetaObject {
-    //有一个原来的对象，对象包装器，对象工厂，对象包装器工厂
+
+  /**
+   *  原对象
+   * */
   private Object originalObject;
+
+  /**
+   *  对象包装器，用于获取、设置属性的值
+   * */
   private ObjectWrapper objectWrapper;
+
+  /**
+   *  对象工厂，用于初始化对象
+   * */
   private ObjectFactory objectFactory;
+
+  /**
+   *  对象包装工厂： 用于获取对象包装器
+   * */
   private ObjectWrapperFactory objectWrapperFactory;
 
   private MetaObject(Object object, ObjectFactory objectFactory, ObjectWrapperFactory objectWrapperFactory) {
@@ -49,13 +64,14 @@ public class MetaObject {
     this.objectFactory = objectFactory;
     this.objectWrapperFactory = objectWrapperFactory;
 
+    //1. 如果对象本身已经是ObjectWrapper型，则直接赋给objectWrapper
     if (object instanceof ObjectWrapper) {
-        //如果对象本身已经是ObjectWrapper型，则直接赋给objectWrapper
       this.objectWrapper = (ObjectWrapper) object;
+
+    //2. 如果对象包装工厂中包含该原对象的包装器，则获取并赋值
     } else if (objectWrapperFactory.hasWrapperFor(object)) {
-        //如果object有包装器,调用ObjectWrapperFactory.getWrapperFor
       this.objectWrapper = objectWrapperFactory.getWrapperFor(this, object);
-    //以下，就是根据object类型的不同，创建不同的对象包装器。
+    //3.，否则根据object的类型，创建不同的对象包装器。
     } else if (object instanceof Map) {
       this.objectWrapper = new MapWrapper(this, (Map) object);
     } else if (object instanceof Collection) {
@@ -64,9 +80,10 @@ public class MetaObject {
       this.objectWrapper = new BeanWrapper(this, object);
     }
   }
+
+
   public static MetaObject forObject(Object object, ObjectFactory objectFactory, ObjectWrapperFactory objectWrapperFactory) {
     if (object == null) {
-        //处理一下null,将null包装起来
       return SystemMetaObject.NULL_META_OBJECT;
     } else {
       return new MetaObject(object, objectFactory, objectWrapperFactory);
@@ -82,88 +99,98 @@ public class MetaObject {
     return originalObject;
   }
 
-  //--------以下方法都是委派给ObjectWrapper------
-  //查找属性
+  //查找是否包含该字段
   public String findProperty(String propName, boolean useCamelCaseMapping) {
     return objectWrapper.findProperty(propName, useCamelCaseMapping);
   }
 
-  //取得getter的名字列表
+  //取得可读的字段名称
   public String[] getGetterNames() {
     return objectWrapper.getGetterNames();
   }
 
-  //取得setter的名字列表
+  //取得可写的字段名称
   public String[] getSetterNames() {
     return objectWrapper.getSetterNames();
   }
 
-  //取得setter的类型列表
+  //取得可写的字段类型（如果有set方法，则为参数类型）
   public Class<?> getSetterType(String name) {
     return objectWrapper.getSetterType(name);
   }
 
-  //取得getter的类型列表
+  //取得可读的字段类型（如果有get方法，则为返回值类型）
   public Class<?> getGetterType(String name) {
     return objectWrapper.getGetterType(name);
   }
-  //是否有指定的setter
+  //判断是该字段是否有 set调用者
   public boolean hasSetter(String name) {
     return objectWrapper.hasSetter(name);
   }
-  //是否有指定的getter
+  //判断该字段是否有 get调用者
   public boolean hasGetter(String name) {
     return objectWrapper.hasGetter(name);
   }
 
 
-  //取得值 name类似ongl表达式
-  //实际上就是递归调用的过程。
-  //eg: MetaObject o = MetaObject.for(roleArr,new DefaultObjectFactory .....);
-  //eg: o.getValue([0].role[1].roleSons.roleName)
-  // 就是现获取当前数组的第一个下标的对象，在封装成MetaObject o2, 然后调用 o2.getValue(role[1].roleSons.roleName)...遍历下去
+  /**
+   * @param name ognl表达式
+   *
+   * */
   public Object getValue(String name) {
+    //1. 通过表达式构建分词器
     PropertyTokenizer prop = new PropertyTokenizer(name);
-    //children表示有孩子，有点"."
+    //2. 如果存在 "孩子"， 即 name 中包含 "."
     if (prop.hasNext()) {
+      //2.1 获取 indexName(当前的元对象的一个属性)对应的值
       MetaObject metaValue = metaObjectForProperty(prop.getIndexedName());
+      //2.2 如果不存在该值，则返回 null
       if (metaValue == SystemMetaObject.NULL_META_OBJECT) {
-          //如果上层就是null了，那就结束，返回null
         return null;
+      //2.3 使用 indexName 对应的值构建的元对象，递归的获取孩子的值
       } else {
-          //否则继续看下一层，递归调用getValue
        return metaValue.getValue(prop.getChildren());
       }
+    //3. 否则表示name为当前元对象的一个属性，则直接获取该属性的值
     } else {
       return objectWrapper.get(prop);
     }
   }
-  //设置值
+
+  /**
+   * @param name ognl表达式
+   * @param value 设置的值
+   * */
   public void setValue(String name, Object value) {
+    //1. 使用该表达式构建分词器
     PropertyTokenizer prop = new PropertyTokenizer(name);
+    //2. 如果存在 "孩子"
     if (prop.hasNext()) {
+      //2.1 获取分词器 indexName 对应的值
       MetaObject metaValue = metaObjectForProperty(prop.getIndexedName());
+      //2.2 如果该对象为空，判断有没有孩子，如果没有返回，否则通过包装器构建初始化该属性，然后在设值
       if (metaValue == SystemMetaObject.NULL_META_OBJECT) {
         if (value == null && prop.getChildren() != null) {
           // don't instantiate child path if value is null
-          //如果上层就是null了，还得看有没有儿子，没有那就结束
           return;
         } else {
-            //否则还得new一个，委派给ObjectWrapper.instantiatePropertyValue
           metaValue = objectWrapper.instantiatePropertyValue(name, prop, objectFactory);
         }
       }
-      //递归调用setValue
       metaValue.setValue(prop.getChildren(), value);
+    //3. 如果不存在孩子，则表示 name 为当前元对象的一个属性，则直接赋值
     } else {
-        //到了最后一层了，所以委派给ObjectWrapper.set
       objectWrapper.set(prop, value);
     }
   }
-  //为某个属性生成元对象
+
+  /**
+   * @param name 根据ognl表达式构建的分词器中的 "indexName"
+   * */
   public MetaObject metaObjectForProperty(String name) {
-      //实际是递归调用
+    //1. 获取属性对应的值
     Object value = getValue(name);
+    //2. 根据该值构建元对象
     return MetaObject.forObject(value, objectFactory, objectWrapperFactory);
   }
 

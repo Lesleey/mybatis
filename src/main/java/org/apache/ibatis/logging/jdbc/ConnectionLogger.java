@@ -27,11 +27,12 @@ import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.reflection.ExceptionUtil;
 
 /**
- * 主要是通过代理模式，给connection所有方法的添加日志打印功能
- * 
+ *  主要是通过代理模式，给connection方法的添加日志打印功能
+ *   1. 如果开启日志， 则在预编译时，打印预编译的sql语句
+ *   2. 调用方法获取 PreparedStatement、Statement 对象时，返回对应的增加了日志功能的动态代理对象
  * @author Clinton Begin
  * @author Eduardo Macarron
- * 
+ *
  */
 public final class ConnectionLogger extends BaseJdbcLogger implements InvocationHandler {
 
@@ -46,10 +47,11 @@ public final class ConnectionLogger extends BaseJdbcLogger implements Invocation
   public Object invoke(Object proxy, Method method, Object[] params)
       throws Throwable {
     try {
-      //如果该方法的执行对象是Object
+      //1. 如果方法的声明对象是 Object，则直接执行
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
-      }    
+      }
+      //---------如果为 数据库连接 Connetion 对象的方法，则通过动态代理添加日志----
       if ("prepareStatement".equals(method.getName())) {
         if (isDebugEnabled()) {
           debug(" Preparing: " + removeBreakingWhitespace((String) params[0]), true);
@@ -77,7 +79,7 @@ public final class ConnectionLogger extends BaseJdbcLogger implements Invocation
   }
 
   /*
-   *获得connectio对象。
+   * 获得connectio对象。
    *
    * @param conn - the original connection
    * @return - the connection with logging

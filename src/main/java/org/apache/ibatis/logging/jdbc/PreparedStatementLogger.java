@@ -31,7 +31,10 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  * 
  * @author Clinton Begin
  * @author Eduardo Macarron
- * 
+ *
+ *  使用动态代理的方式为 PreparedStatement 对象添加日志
+ *  1. 如果开启日志，则调用执行方法之前，会打印为预编译参数设置的所有值
+ *  2. 通过方法获取 ResultSet 对象时，返回具有日志功能的 ResultSet 动态代理对象
  */
 public final class PreparedStatementLogger extends BaseJdbcLogger implements InvocationHandler {
 
@@ -45,9 +48,11 @@ public final class PreparedStatementLogger extends BaseJdbcLogger implements Inv
   @Override
   public Object invoke(Object proxy, Method method, Object[] params) throws Throwable {
     try {
+      //1. 如果方法的声明对象是Object，则直接执行
       if (Object.class.equals(method.getDeclaringClass())) {
         return method.invoke(this, params);
-      }          
+      }
+      //2. 如果执行的方法为 执行sql语句的方法
       if (EXECUTE_METHODS.contains(method.getName())) {
         if (isDebugEnabled()) {
           debug("Parameters: " + getParameterValueString(), true);

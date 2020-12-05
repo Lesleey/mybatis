@@ -40,9 +40,11 @@ public class RoutingStatementHandler implements StatementHandler {
 
   private final StatementHandler delegate;
 
+  /**
+   *  根据语句类型，委派到不同的语句处理器(STATEMENT|PREPARED|CALLABLE)
+   * */
   public RoutingStatementHandler(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) {
 
-    //根据语句类型，委派到不同的语句处理器(STATEMENT|PREPARED|CALLABLE)
     switch (ms.getStatementType()) {
       case STATEMENT:
         delegate = new SimpleStatementHandler(executor, ms, parameter, rowBounds, resultHandler, boundSql);

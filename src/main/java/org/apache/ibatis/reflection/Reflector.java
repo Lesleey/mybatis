@@ -48,44 +48,74 @@ import org.apache.ibatis.reflection.property.PropertyNamer;
  * @author Clinton Begin
  */
 /**
- * 反射器, 属性->getter/setter的映射器，而且加了缓存
+ * 反射器: 通过反射解析具体的某个类对象的所有信息，包括所有的get、set方法、字段属性等等
  *
  */
 public class Reflector {
 
   private static boolean classCacheEnabled = true;
   private static final String[] EMPTY_STRING_ARRAY = new String[0];
-  //这里用ConcurrentHashMap，多线程支持，作为一个缓存
+
+  /**
+   *  key: 类对象， value： 对应的反射器
+   * */
   private static final Map<Class<?>, Reflector> REFLECTOR_MAP = new ConcurrentHashMap<Class<?>, Reflector>();
-  //当年代表的元对象的类对象
+
+  /**
+   *  当前正在解析的类对象
+   * */
   private Class<?> type;
-  //getter的属性列表
+
+  /**
+   *  可读的字段名称（具有get方法，或者本身可读）
+   * */
   private String[] readablePropertyNames = EMPTY_STRING_ARRAY;
-  //setter的属性列表
+
+  /**
+   *  可写的字段名称（具有set方法，或者本身可写）
+   * */
   private String[] writeablePropertyNames = EMPTY_STRING_ARRAY;
-  //元对象setter的方法列表
+
+  /**
+   *  key: 字段名称, value： 对应的 set 方法的调用这
+   * */
   private Map<String, Invoker> setMethods = new HashMap<String, Invoker>();
-  //元对象getter的方法列表
+
+  /**
+   *  key: 属性名称， value： get方法调用者对象(如果存在get方法，则为 MethodInvoker,否则则为 GetInvoker)
+   * */
   private Map<String, Invoker> getMethods = new HashMap<String, Invoker>();
-  //元对象setter的类型列表
+
+  /**
+   *  key: 属性名称， value: set 方法对应的参数类型
+   * */
   private Map<String, Class<?>> setTypes = new HashMap<String, Class<?>>();
-  //元对象getter的类型列表
+
+  /**
+   *  key: 字段名称， value: get方法的返回值
+   * */
   private Map<String, Class<?>> getTypes = new HashMap<String, Class<?>>();
-  //元对象的默认构造函数
+
+  /**
+   *  原对象默认的构造函数
+   * */
   private Constructor<?> defaultConstructor;
 
-  //可以通过某一个propName，判断该propName有没有get/set方法
+  /**
+   *  key: 大写的字段名称, value: 字段名
+   *    用于判断该字段是否有 get 或者set 方法
+   * */
   private Map<String, String> caseInsensitivePropertyMap = new HashMap<String, String>();
 
   private Reflector(Class<?> clazz) {
     type = clazz;
-    //加入默认的构造器，
+    //1. 加入默认的构造器，
     addDefaultConstructor(clazz);
-    //加入getter
+    //2. 加入所有的get方法
     addGetMethods(clazz);
-    //加入setter
+    //3. 加入setter
     addSetMethods(clazz);
-    //加入字段
+    //4. 加入字段
     addFields(clazz);
     readablePropertyNames = getMethods.keySet().toArray(new String[getMethods.keySet().size()]);
     writeablePropertyNames = setMethods.keySet().toArray(new String[setMethods.keySet().size()]);
@@ -98,6 +128,9 @@ public class Reflector {
     }
   }
 
+  /**
+   * 通过类对象，获取默认的构造函数
+   * */
   private void addDefaultConstructor(Class<?> clazz) {
     Constructor<?>[] consts = clazz.getDeclaredConstructors();
     for (Constructor<?> constructor : consts) {
@@ -116,13 +149,19 @@ public class Reflector {
     }
   }
 
+  /**
+   *   通过类对象，获取所有的字段和其对应的get方法和返回值类型
+   * */
   private void addGetMethods(Class<?> cls) {
-    //属性名，和对应的方法集合，get
+    //key: 属性名成， value: 对应的所有get方法
     Map<String, List<Method>> conflictingGetters = new HashMap<String, List<Method>>();
-    //这里getter和setter都调用了getClassMethods，有点浪费效率了。不妨把addGetMethods,addSetMethods合并成一个方法叫addMethods
+    //1. 获取该类的所有方法
     Method[] methods = getClassMethods(cls);
+    //2. 遍历所有的方法
     for (Method method : methods) {
+      //2.1 获取方法名称
       String name = method.getName();
+      //2.2 根据方法名称，获取属性名称，并将对应关系添加到 map 中
       if (name.startsWith("get") && name.length() > 3) {
         if (method.getParameterTypes().length == 0) {
           name = PropertyNamer.methodToProperty(name);
@@ -135,20 +174,26 @@ public class Reflector {
         }
       }
     }
+    //3. 解决 get 方法冲突，从重载的方法中，寻找合适的get方法
     resolveGetterConflicts(conflictingGetters);
   }
 
-
+  /**
+   *  解决 get 方法冲突: 从 get 方法集合中寻找一个 合适的 get 方法
+   * */
   private void resolveGetterConflicts(Map<String, List<Method>> conflictingGetters) {
+    //遍历所有的对应关系
     for (String propName : conflictingGetters.keySet()) {
       List<Method> getters = conflictingGetters.get(propName);
       Iterator<Method> iterator = getters.iterator();
       Method firstMethod = iterator.next();
+      //1. 如果对应的 get 方法只有一个，则添加到属性中
       if (getters.size() == 1) {
         addGetMethod(propName, firstMethod);
+      //2. 如果对应的 get 方法有多个（重载）， 则寻找返回值类型最大的get方法，添加到属性中
       } else {
         Method getter = firstMethod;
-        //如果有返回值的范围大的，则选择大的那个方法
+
         Class<?> getterType = firstMethod.getReturnType();
         while (iterator.hasNext()) {
           Method method = iterator.next();
@@ -173,6 +218,11 @@ public class Reflector {
     }
   }
 
+  /**
+   * @param name 属性名称
+   * @param method 对应的get 方法对象
+   *
+   * */
   private void addGetMethod(String name, Method method) {
     if (isValidPropertyName(name)) {
       getMethods.put(name, new MethodInvoker(method));
@@ -180,10 +230,17 @@ public class Reflector {
     }
   }
 
+
+  /**
+   *  通过类对象，获取所有的字段和其对应的set方法和参数类型
+   * */
   private void addSetMethods(Class<?> cls) {
     Map<String, List<Method>> conflictingSetters = new HashMap<String, List<Method>>();
+    //1. 获取所有的方法
     Method[] methods = getClassMethods(cls);
+    //2. 遍历所有的方法
     for (Method method : methods) {
+      //2.1 如果为 set 方法，则添加到 字段对应的集合中
       String name = method.getName();
       if (name.startsWith("set") && name.length() > 3) {
         if (method.getParameterTypes().length == 1) {
@@ -192,6 +249,7 @@ public class Reflector {
         }
       }
     }
+    //3. 解决set方法冲突
     resolveSetterConflicts(conflictingSetters);
   }
 
@@ -205,11 +263,14 @@ public class Reflector {
   }
 
   private void resolveSetterConflicts(Map<String, List<Method>> conflictingSetters) {
+    //遍历所有的对应关系
     for (String propName : conflictingSetters.keySet()) {
       List<Method> setters = conflictingSetters.get(propName);
       Method firstMethod = setters.get(0);
+      //1. 如果字段对应的 set 方法只有一个，则添加到属性中
       if (setters.size() == 1) {
         addSetMethod(propName, firstMethod);
+      //2. 如果有多个，则寻找只有一个参数且和 已解析的对应字段的 get 方法的返回值相同的set 方法，并添加到属性中
       } else {
         Class<?> expectedType = getTypes.get(propName);
         if (expectedType == null) {
@@ -245,8 +306,11 @@ public class Reflector {
     }
   }
 
+
   private void addFields(Class<?> clazz) {
+    //1. 获取该类声明的所有字段
     Field[] fields = clazz.getDeclaredFields();
+    //2. 遍历所有的字段对象
     for (Field field : fields) {
       if (canAccessPrivateMethods()) {
         try {
@@ -256,6 +320,7 @@ public class Reflector {
         }
       }
       if (field.isAccessible()) {
+        //2.1 如果 setMethods 中没有处理该字段的 set 方法， 如果该字段不是 final和static 修饰，则构建对应的set方法调用者，
         if (!setMethods.containsKey(field.getName())) {
           // issue #379 - removed the check for final because JDK 1.5 allows
           // modification of final fields through reflection (JSR-133). (JGB)
@@ -265,6 +330,7 @@ public class Reflector {
             addSetField(field);
           }
         }
+        //2.2 如果 getMethods 不包括该字段的处理方法，则进行构建添加
         if (!getMethods.containsKey(field.getName())) {
           addGetField(field);
         }
@@ -298,7 +364,7 @@ public class Reflector {
    * declared in this class and any superclass.
    * We use this method, instead of the simpler Class.getMethods(),
    * because we want to look for private methods as well.
-   * 得到所有方法，包括private方法，包括父类方法.包括接口方法
+   *   得到所有方法，包括private方法，包括父类方法.包括接口方法
    *
    * @param cls The class
    * @return An array containing all methods in this class
@@ -325,13 +391,15 @@ public class Reflector {
   }
 
   private void addUniqueMethods(Map<String, Method> uniqueMethods, Method[] methods) {
+    // 遍历所有的方法
     for (Method currentMethod : methods) {
       if (!currentMethod.isBridge()) {
-          //取得签名
+        //1. 取得签名
         String signature = getSignature(currentMethod);
         // check to see if the method is already known
         // if it is known, then an extended class must have
         // overridden a method
+        //2. 如果之前没有，则添加
         if (!uniqueMethods.containsKey(signature)) {
           if (canAccessPrivateMethods()) {
             try {
@@ -347,13 +415,18 @@ public class Reflector {
     }
   }
 
+  /**
+   *  根据方法获取签名保证方法只被获取一次
+   * */
   private String getSignature(Method method) {
     StringBuilder sb = new StringBuilder();
     Class<?> returnType = method.getReturnType();
+    //1. 获取返回值类型
     if (returnType != null) {
       sb.append(returnType.getName()).append('#');
     }
     sb.append(method.getName());
+    //2. 获取参数类型
     Class<?>[] parameters = method.getParameterTypes();
     for (int i = 0; i < parameters.length; i++) {
       if (i == 0) {
@@ -370,6 +443,7 @@ public class Reflector {
     try {
       SecurityManager securityManager = System.getSecurityManager();
       if (null != securityManager) {
+        // 检测是否有权限可以访问类中的字段和方法，不仅包括 public,还包括 default, protected, private
         securityManager.checkPermission(new ReflectPermission("suppressAccessChecks"));
       }
     } catch (SecurityException e) {
@@ -495,7 +569,6 @@ public class Reflector {
   public static Reflector forClass(Class<?> clazz) {
     if (classCacheEnabled) {
       // synchronized (clazz) removed see issue #461
-        //对于每个类来说，我们假设它是不会变的，这样可以考虑将这个类的信息(构造函数，getter,setter,字段)加入缓存，以提高速度
       Reflector cached = REFLECTOR_MAP.get(clazz);
       if (cached == null) {
         cached = new Reflector(clazz);

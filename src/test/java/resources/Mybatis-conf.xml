@@ -3,11 +3,6 @@
         PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-config.dtd">
 <configuration>
-    <properties url="">
-        <property name="name" value="lesleey" />
-        <property name="age" value="18" />
-    </properties>
-
     <!-- 定义数据库的信息，默认使用development数据库构建环境 -->
     <environments default="development">
         <environment id="development">

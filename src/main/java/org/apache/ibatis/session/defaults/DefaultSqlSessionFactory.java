@@ -46,14 +46,15 @@ import org.apache.ibatis.transaction.managed.ManagedTransactionFactory;
  */
 public class DefaultSqlSessionFactory implements SqlSessionFactory {
 
+  /**
+   *  全局配置类
+   * */
   private final Configuration configuration;
 
   public DefaultSqlSessionFactory(Configuration configuration) {
     this.configuration = configuration;
   }
 
-  //最终都会调用2种方法：openSessionFromDataSource,openSessionFromConnection
-  //以下6个方法都会调用openSessionFromDataSource
   @Override
   public SqlSession openSession() {
     return openSessionFromDataSource(configuration.getDefaultExecutorType(), null, false);
@@ -84,7 +85,6 @@ public class DefaultSqlSessionFactory implements SqlSessionFactory {
     return openSessionFromDataSource(execType, null, autoCommit);
   }
 
-  //以下2个方法都会调用openSessionFromConnection
   @Override
   public SqlSession openSession(Connection connection) {
     return openSessionFromConnection(configuration.getDefaultExecutorType(), connection);
@@ -100,23 +100,29 @@ public class DefaultSqlSessionFactory implements SqlSessionFactory {
     return configuration;
   }
 
+  /**
+   *  @param execType  指定使用的执行器类型
+   *  @param level 事务的隔离级别
+   *  @param autoCommit
+   * */
   private SqlSession openSessionFromDataSource(ExecutorType execType, TransactionIsolationLevel level, boolean autoCommit) {
     Transaction tx = null;
     try {
+      //1. 获取当前所使用的数据库环境
       final Environment environment = configuration.getEnvironment();
+      //2. 根据数据库环境构建事务工厂
       final TransactionFactory transactionFactory = getTransactionFactoryFromEnvironment(environment);
-      //通过事务工厂来产生一个事务,JDBCTransactionFactory
+      //3. 通过事务工厂构建事务
       tx = transactionFactory.newTransaction(environment.getDataSource(), level, autoCommit);
-      //生成一个执行器(事务包含在执行器里)
+      //4. 通过事务和执行器类型构建 sqlSession 所使用的执行器
       final Executor executor = configuration.newExecutor(tx, execType);
-      //然后产生一个DefaultSqlSession
       return new DefaultSqlSession(configuration, executor, autoCommit);
     } catch (Exception e) {
-      //如果打开事务出错，则关闭它
+      //5. 如果构建过程中出现错误，则关闭数据库连接
       closeTransaction(tx); // may have fetched a connection so lets call close()
       throw ExceptionFactory.wrapException("Error opening session.  Cause: " + e, e);
     } finally {
-      //最后清空错误上下文
+      //6. 最后清空错误上下文
       ErrorContext.instance().reset();
     }
   }
@@ -144,10 +150,11 @@ public class DefaultSqlSessionFactory implements SqlSessionFactory {
   }
 
   private TransactionFactory getTransactionFactoryFromEnvironment(Environment environment) {
-    //如果没有配置事务工厂，则返回托管事务工厂
+    //1. 如果没有mybatis-config文件里没有符合的数据库环境(<enviroment/>节点指定的id)，则返回托管事务工厂
     if (environment == null || environment.getTransactionFactory() == null) {
       return new ManagedTransactionFactory();
     }
+    //2. 返回环境中的事务工厂
     return environment.getTransactionFactory();
   }
 

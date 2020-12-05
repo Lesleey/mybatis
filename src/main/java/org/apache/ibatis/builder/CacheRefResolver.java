@@ -25,7 +25,14 @@ import org.apache.ibatis.cache.Cache;
  *
  */
 public class CacheRefResolver {
+  /**
+   *  mapper构建助手
+   * */
   private final MapperBuilderAssistant assistant;
+
+  /**
+   *   当前mapper 所引用的缓存对应的命名空间
+   * */
   private final String cacheRefNamespace;
 
   public CacheRefResolver(MapperBuilderAssistant assistant, String cacheRefNamespace) {
@@ -33,8 +40,10 @@ public class CacheRefResolver {
     this.cacheRefNamespace = cacheRefNamespace;
   }
 
+  /**
+   *  获取指定的命名空间所使用的缓存对象
+   * */
   public Cache resolveCacheRef() {
-      //调用MapperBuilderAssistant获得引用namespace的缓存
     return assistant.useCacheRef(cacheRefNamespace);
   }
 }

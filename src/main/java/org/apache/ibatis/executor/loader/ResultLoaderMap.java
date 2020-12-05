@@ -51,10 +51,13 @@ import org.apache.ibatis.session.RowBounds;
  */
 public class ResultLoaderMap {
 
-  //加载对的hashmap
+  /**
+   *  加载对
+   *   key: 属性名称， value: 加载对
+   * */
   private final Map<String, LoadPair> loaderMap = new HashMap<String, LoadPair>();
 
-  //把要延迟加载的属性记到ResultLoaderMap里（一个哈希表）
+
   public void addLoader(String property, MetaObject metaResultObject, ResultLoader resultLoader) {
     String upperFirst = getUppercaseFirstProperty(property);
     if (!upperFirst.equalsIgnoreCase(property) && loaderMap.containsKey(upperFirst)) {
@@ -62,11 +65,6 @@ public class ResultLoaderMap {
               "' for query id '" + resultLoader.mappedStatement.getId() +
               " already exists in the result map. The leftmost property of all lazy loaded properties must be unique within a result map.");
     }
-    //key是property，这样当客户端调用getter来取真实值时，会判断这个属性是否是延迟加载属性，是才去加载
-    //可参见CglibProxyFactory的代码
-//    if (lazyLoader.hasLoader(property)) {
-//        lazyLoader.load(property);
-//    }
     loaderMap.put(upperFirst, new LoadPair(property, metaResultObject, resultLoader));
   }
 
@@ -87,16 +85,19 @@ public class ResultLoaderMap {
   }
 
   public boolean load(String property) throws SQLException {
-	//先删除key，防止第二次又去查数据库
+	//1. 先删除key，防止第二次查询数据库
     LoadPair pair = loaderMap.remove(property.toUpperCase(Locale.ENGLISH));
+    //2. 从数据库中查询加载对指定的属性
     if (pair != null) {
-      //去数据库查
       pair.load();
       return true;
     }
     return false;
   }
 
+  /**
+   *  加载给结果加载器里的所有加载对
+   * */
   public void loadAll() throws SQLException {
     final Set<String> methodNameSet = loaderMap.keySet();
     String[] methodNames = methodNameSet.toArray(new String[methodNameSet.size()]);
@@ -112,13 +113,13 @@ public class ResultLoaderMap {
 
   /**
    * Property which was not loaded yet.
+   *  静态内部类，加载对
    */
-  //静态内部类，加载对
   public static class LoadPair implements Serializable {
 
     private static final long serialVersionUID = 20130412;
     /**
-     * Name of factory method which returns database connection. 返回数据库连接的工厂方法名
+     *  返回数据库连接的工厂方法名
      */
     private static final String FACTORY_METHOD = "getConfiguration";
     /**
@@ -126,31 +127,29 @@ public class ResultLoaderMap {
      */
     private final transient Object serializationCheck = new Object();
     /**
-     * Meta object which sets loaded properties.  用来设置懒加载属性的元数据
+     *  用来设置懒加载属性的元对象
      */
     private transient MetaObject metaResultObject;
     /**
-     * Result loader which loads unread properties. 加载懒加载的属性的结果加载器
+     * 加载懒加载的属性的结果加载器
      */
     private transient ResultLoader resultLoader;
-    /**
-     * Wow, logger.
-     */
+
     private transient Log log;
     /**
-     * Factory class through which we get database connection. 获得数据库连接的配置工厂类对象
+     * 获得数据库连接的配置工厂类对象
      */
     private Class<?> configurationFactory;
     /**
-     * Name of the unread property. 懒加载的属性
+     * 懒加载的属性
      */
     private String property;
     /**
-     * ID of SQL statement which loads the property.  加载属性的sql语句的id
+     * 进行懒加载sql语句对应的 MappedStatement 的id
      */
     private String mappedStatement;
     /**
-     * Parameter of the sql statement. sql语句的参数
+     * 该sql语句的需要的参数
      */
     private Serializable mappedParameter;
 
@@ -191,6 +190,9 @@ public class ResultLoaderMap {
       this.load(null);
     }
 
+    /**
+     *  懒加载的主要流程
+     * */
     public void load(final Object userObject) throws SQLException {
       if (this.metaResultObject == null || this.resultLoader == null) {
         if (this.mappedParameter == null) {
@@ -198,8 +200,9 @@ public class ResultLoaderMap {
                   + "required parameter of mapped statement ["
                   + this.mappedStatement + "] is not serializable.");
         }
-
+        //1. 获取 mybatis 的全局配置类
         final Configuration config = this.getConfiguration();
+        //2. 获取待执行的 sql 语句对应的 MappedStatement 对象
         final MappedStatement ms = config.getMappedStatement(this.mappedStatement);
         if (ms == null) {
           throw new ExecutorException("Cannot lazy load property [" + this.property
@@ -207,8 +210,9 @@ public class ResultLoaderMap {
                   + "] because configuration does not contain statement ["
                   + this.mappedStatement + "]");
         }
-
+        //3. 构建 userObject 的元对象
         this.metaResultObject = config.newMetaObject(userObject);
+        //4. 构建结果加载器
         this.resultLoader = new ResultLoader(config, new ClosedExecutor(), ms, this.mappedParameter,
                 metaResultObject.getSetterType(this.property), null, null);
       }
@@ -217,6 +221,7 @@ public class ResultLoaderMap {
        * and executors aren't thread safe. (Is this sufficient?)
        *
        * A better approach would be making executors thread safe. */
+      // 5. 加载对的线程安全问题(太六了)
       if (this.serializationCheck == null) {
         final ResultLoader old = this.resultLoader;
         this.resultLoader = new ResultLoader(old.configuration, new ClosedExecutor(), old.mappedStatement,
@@ -226,6 +231,9 @@ public class ResultLoaderMap {
       this.metaResultObject.setValue(property, this.resultLoader.loadResult());
     }
 
+    /**
+     *  获取 MyBatis 的全局配置类
+     * */
     private Configuration getConfiguration() {
       if (this.configurationFactory == null) {
         throw new ExecutorException("Cannot get Configuration as configuration factory was not set.");
@@ -287,6 +295,9 @@ public class ResultLoaderMap {
     }
   }
 
+  /**
+   *   关闭执行器
+   * */
   private static final class ClosedExecutor extends BaseExecutor {
 
     public ClosedExecutor() {

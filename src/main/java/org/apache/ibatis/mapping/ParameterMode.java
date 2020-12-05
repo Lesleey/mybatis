@@ -20,7 +20,10 @@ package org.apache.ibatis.mapping;
  */
 /**
  * 
- * 参数模式（sql函数）
+ * 参数模式（sql  函数 | 存储过程）
+ * IN: 表示参数往函数里传值
+ * OUT: 参数表示函数的输出值（返回值）
+ * INOUT： 参数即用来传值，又用来接收返回值
  */
 public enum ParameterMode {
   IN, OUT, INOUT

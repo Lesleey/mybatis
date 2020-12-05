@@ -33,11 +33,21 @@ import org.apache.ibatis.cache.CacheException;
  * 
  * @author Eduardo Macarron
  *
+ *    阻塞缓存：当多个线程从缓存中查找相同的缓存key时，如果缓存中没有该对象，避免多个线程同时查找数据库，而是设置一个锁，
+ *   其他的线程等待，直到获取锁的线程从数据库中查找到该元素，然后填充到缓存中。
  */
 public class BlockingCache implements Cache {
 
+  /**
+   *  获取锁的超时时间
+   * */
   private long timeout;
   private final Cache delegate;
+
+  /**
+   *  key: 缓存 key
+   *  value: 锁对象
+   * */
   private final ConcurrentHashMap<Object, ReentrantLock> locks;
 
   public BlockingCache(Cache delegate) {
@@ -58,16 +68,22 @@ public class BlockingCache implements Cache {
   @Override
   public void putObject(Object key, Object value) {
     try {
+      //1. 向缓存中添加对象
       delegate.putObject(key, value);
+      //2. 释放 key对应的锁
     } finally {
       releaseLock(key);
     }
   }
 
+
   @Override
   public Object getObject(Object key) {
+    //1. 获取锁
     acquireLock(key);
+    //2. 从缓存中获取对象
     Object value = delegate.getObject(key);
+    //3. 如果获取不到，则不会释放锁，直到该key对应的缓存项被放入缓存
     if (value != null) {
       releaseLock(key);
     }        
@@ -88,13 +104,20 @@ public class BlockingCache implements Cache {
   public ReadWriteLock getReadWriteLock() {
     return null;
   }
-  
+
+  /**
+   * @param key  缓存 key
+   *    通过缓存 key获取对应的锁对象
+   * */
   private ReentrantLock getLockForKey(Object key) {
     ReentrantLock lock = new ReentrantLock();
     ReentrantLock previous = locks.putIfAbsent(key, lock);
     return previous == null ? lock : previous;
   }
-  
+
+  /**
+   * 获取锁
+   * */
   private void acquireLock(Object key) {
     Lock lock = getLockForKey(key);
     if (timeout > 0) {
@@ -110,7 +133,10 @@ public class BlockingCache implements Cache {
       lock.lock();
     }
   }
-  
+
+  /**
+   * 释放锁
+   * */
   private void releaseLock(Object key) {
     ReentrantLock lock = locks.get(key);
     if (lock.isHeldByCurrentThread()) {

@@ -21,12 +21,19 @@ import org.apache.ibatis.session.ResultContext;
  * @author Clinton Begin
  */
 /**
- * 默认结果上下文,使用它来暂时存储所有的对象
+ * 默认结果上下文,使用它来暂时存储每一行的数据
  * 
  */
 public class DefaultResultContext implements ResultContext {
 
+  /**
+   *  处理结果集一条记录获取的java对象
+   * */
   private Object resultObject;
+
+  /**
+   *  存储过多少对象，也就是已经处理了多少行结果，用于判断处理的行数是否已经达到了 RowsBounds的limit数量
+   * */
   private int resultCount;
   private boolean stopped;
 
@@ -51,7 +58,9 @@ public class DefaultResultContext implements ResultContext {
     return stopped;
   }
 
-  //应该是每次调用nextResultObject这个方法，这样内部count就加1
+  /**
+   *  存储结果对象，并使 resultCount ++
+   * */
   public void nextResultObject(Object resultObject) {
     resultCount++;
     this.resultObject = resultObject;

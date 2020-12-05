@@ -32,7 +32,6 @@ import org.apache.ibatis.reflection.property.PropertyTokenizer;
  */
 public class CollectionWrapper implements ObjectWrapper {
 
-    //原来的对象
   private Collection<Object> object;
 
   public CollectionWrapper(MetaObject metaObject, Collection<Object> object) {

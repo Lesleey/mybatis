@@ -34,9 +34,14 @@ import org.apache.ibatis.reflection.property.PropertyTokenizer;
  * 
  */
 public class BeanWrapper extends BaseWrapper {
-  //原来的对象
+  /**
+   *  具体要操作的对象
+   * */
   private Object object;
-  //元类，之前有讲过，主要通过内部Reflector来操作
+
+  /**
+   *  通过对象生成的元类型
+   * */
   private MetaClass metaClass;
 
   public BeanWrapper(MetaObject metaObject, Object object) {
@@ -45,26 +50,34 @@ public class BeanWrapper extends BaseWrapper {
     this.metaClass = MetaClass.forClass(object.getClass());
   }
 
+  /**
+   * @prop 通过表达式获取的分词器
+   *   获取表达式对应的值
+   * */
   @Override
   public Object get(PropertyTokenizer prop) {
-      //如果有index(有中括号),说明是集合，那就要解析集合,调用的是BaseWrapper.resolveCollection 和 getCollectionValue
+    //1. 如果 index 不为空，则表示为对应索引的操作
     if (prop.getIndex() != null) {
+      //1.1 获取 name 对应的值
       Object collection = resolveCollection(prop, object);
+      //1.2 获取指定索引的值
       return getCollectionValue(prop, collection);
+    //2. 否则，则表示对属性的操作，获取该对象指定属性的值
     } else {
-        //否则，getBeanProperty
       return getBeanProperty(prop, object);
     }
   }
 
   @Override
   public void set(PropertyTokenizer prop, Object value) {
-      //如果有index,说明是集合，那就要解析集合,调用的是BaseWrapper.resolveCollection 和 setCollectionValue
+    //1. 如果有索引，则表示对集合的操作
     if (prop.getIndex() != null) {
+      //1.1 获取 name 对应的值
       Object collection = resolveCollection(prop, object);
+      //1.1 对 index 位置进行赋值
       setCollectionValue(prop, collection, value);
+    //2. 否则，表示 name 为一个字段（非集合）， 对该对象的指定字段赋值
     } else {
-        //否则，setBeanProperty
       setBeanProperty(prop, object, value);
     }
   }
@@ -166,9 +179,14 @@ public class BeanWrapper extends BaseWrapper {
     return metaValue;
   }
 
+  /**
+   * @param prop 表达式对应的分词器
+   * @param object 获取值的表达式
+   *    name： 相当于字段名称，获取对象指定字段的值
+   * */
   private Object getBeanProperty(PropertyTokenizer prop, Object object) {
     try {
-        //得到getter方法，然后调用
+      // 获取指定字段的 get方法调用这，然后进行调用
       Invoker method = metaClass.getGetInvoker(prop.getName());
       try {
         return method.invoke(object, NO_ARGUMENTS);
@@ -182,9 +200,14 @@ public class BeanWrapper extends BaseWrapper {
     }
   }
 
+  /**
+   * @param prop 表达式对应的分词器
+   * @param object 对象
+   * @param value 需要赋的值
+   *    此时分词器的 name就表示字段的名称， 给对象指定的字段赋值
+   * */
   private void setBeanProperty(PropertyTokenizer prop, Object object, Object value) {
     try {
-        //得到setter方法，然后调用
       Invoker method = metaClass.getSetInvoker(prop.getName());
       Object[] params = {value};
       try {

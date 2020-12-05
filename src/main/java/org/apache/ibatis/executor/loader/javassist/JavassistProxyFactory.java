@@ -60,7 +60,6 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
 
   public JavassistProxyFactory() {
     try {
-      //先检查是否有javassist
       Resources.classForName("javassist.util.proxy.ProxyFactory");
     } catch (Throwable e) {
       throw new IllegalStateException("Cannot enable lazy loading because Javassist is not available. Add Javassist to your classpath.", e);
@@ -83,7 +82,6 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
 
   static Object crateProxy(Class<?> type, MethodHandler callback, List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
 
-    //核心就是用javassist的ProxyFactory,没啥可说的，下面逻辑都是cglib的翻版
     ProxyFactory enhancer = new ProxyFactory();
     enhancer.setSuperclass(type);
 
@@ -109,7 +107,6 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
     return enhanced;
   }
 
-  //如果又懒加载，则用结果对象封装成动态代理类返回
   private static class EnhancedResultObjectProxyImpl implements MethodHandler {
 
     private Class<?> type;
@@ -176,7 +173,6 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
     }
   }
 
-  //反序列化的动态大力实现类
   private static class EnhancedDeserializationProxyImpl extends AbstractEnhancedDeserializationProxy implements MethodHandler {
 
     private EnhancedDeserializationProxyImpl(Class<?> type, Map<String, ResultLoaderMap.LoadPair> unloadedProperties, ObjectFactory objectFactory,

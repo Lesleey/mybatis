@@ -37,10 +37,10 @@ import org.apache.ibatis.transaction.Transaction;
  */
 public interface Executor {
 
-  //不需要ResultHandler，对结果集进行处理的
+  //不需要对结果集进行处理的使用该 ResultHandler
   ResultHandler NO_RESULT_HANDLER = null;
 
-  //更新
+  //更新 | 删除 | 插入
   int update(MappedStatement ms, Object parameter) throws SQLException;
 
   //查询，带分页，带缓存，BoundSql
@@ -63,7 +63,7 @@ public interface Executor {
   //判断是否缓存了
   boolean isCached(MappedStatement ms, CacheKey key);
 
-  //清理Session缓存
+  //清理sqlsession缓存
   void clearLocalCache();
 
   //延迟加载

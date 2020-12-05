@@ -37,23 +37,48 @@ import org.apache.ibatis.type.UnknownTypeHandler;
 
 /**
  *
- *  对结果集进行包装,抽取结果集的一部分信息
+ *  结果集包装器： 用于方便的获取结果集 todo lisilu
  */
 class ResultSetWrapper {
 
+  /**
+   *  Statement 执行结果
+   * */
   private final ResultSet resultSet;
+
+  /**
+   *  类型处理注册器
+   * */
   private final TypeHandlerRegistry typeHandlerRegistry;
-  //该结果集所有的列名
+
+  /**
+   *  结果集的所有列名
+   * */
   private final List<String> columnNames = new ArrayList<String>();
-  //该结果集列名对应的javaType的全限定名成
+
+  /**
+   *  结果集的所有列的jdbc类型对应的 java类型的全限定名
+   * */
   private final List<String> classNames = new ArrayList<String>();
-  //该结果集所有列名对应的jdbcType
+
+  /**
+   *  结果集的所有列的 jdbcType
+   * */
   private final List<JdbcType> jdbcTypes = new ArrayList<JdbcType>();
-  //列名 ， <javaType, typeHandler>
+
+  /**
+   *  key: 列名, value: [ key: 对应的字段类型， value: 类型处理器实例]
+   * */
   private final Map<String, Map<Class<?>, TypeHandler<?>>> typeHandlerMap = new HashMap<String, Map<Class<?>, TypeHandler<?>>>();
   //被映射到的列名的集合，resultMap, columns
+  /**
+   *  key: mapKey, value: 在 ResultMap 被指定映射的列名的集合
+   * */
   private Map<String, List<String>> mappedColumnNamesMap = new HashMap<String, List<String>>();
   //未被映射到的列名的集合
+  /**
+   *  key: mapkey, vlaue: 在 ResultMap 未指定映射的列名的集合
+   * */
   private Map<String, List<String>> unMappedColumnNamesMap = new HashMap<String, List<String>>();
 
   public ResultSetWrapper(ResultSet rs, Configuration configuration) throws SQLException {
@@ -85,10 +110,10 @@ class ResultSetWrapper {
    * Gets the type handler to use when reading the result set.
    * Tries to get from the TypeHandlerRegistry by searching for the property type.
    * If not found it gets the column JDBC type and tries to get a handler for it.
-   * 
-   * @param propertyType
-   * @param columnName
-   * @return
+   *
+   * @param propertyType 属性类型
+   * @param columnName 列名
+   * @return 根据属性类型和jdbc类型获取对应的类型处理器
    */
   public TypeHandler<?> getTypeHandler(Class<?> propertyType, String columnName) {
     TypeHandler<?> handler = null;
@@ -131,12 +156,14 @@ class ResultSetWrapper {
     }
   }
 
-  //resultSet和resultMap ，加载所有已被映射到的列，和未被映射到的列到对应的集合中
+  /**
+   *  加载 在 ResultMap指定的映射(列名 <==> 字段名)和没有指定的映射
+   * */
   private void loadMappedAndUnmappedColumnNames(ResultMap resultMap, String columnPrefix) throws SQLException {
     List<String> mappedColumnNames = new ArrayList<String>();
     List<String> unmappedColumnNames = new ArrayList<String>();
     final String upperColumnPrefix = columnPrefix == null ? null : columnPrefix.toUpperCase(Locale.ENGLISH);
-    //给ResultMap映射的所有列名加上前缀返回。
+    //1. 给ResultMap映射的所有列名加上前缀返回。
     final Set<String> mappedColumns = prependPrefixes(resultMap.getMappedColumns(), upperColumnPrefix);
     for (String columnName : columnNames) {
       final String upperColumnName = columnName.toUpperCase(Locale.ENGLISH);
@@ -146,10 +173,14 @@ class ResultSetWrapper {
         unmappedColumnNames.add(columnName);
       }
     }
+    //2. 将未被映射和已被映射列名放到map中返回
     mappedColumnNamesMap.put(getMapKey(resultMap, columnPrefix), mappedColumnNames);
     unMappedColumnNamesMap.put(getMapKey(resultMap, columnPrefix), unmappedColumnNames);
   }
 
+  /**
+   *  获取ResultSet的所有列中，返回在 ResultMap 指定映射的列名
+   * */
   public List<String> getMappedColumnNames(ResultMap resultMap, String columnPrefix) throws SQLException {
     List<String> mappedColumnNames = mappedColumnNamesMap.get(getMapKey(resultMap, columnPrefix));
     if (mappedColumnNames == null) {
@@ -159,6 +190,9 @@ class ResultSetWrapper {
     return mappedColumnNames;
   }
 
+  /**
+   *  获取ResultSet的所有列中，没有在 ResultMap中指定映射的列名
+   * */
   public List<String> getUnmappedColumnNames(ResultMap resultMap, String columnPrefix) throws SQLException {
     List<String> unMappedColumnNames = unMappedColumnNamesMap.get(getMapKey(resultMap, columnPrefix));
     if (unMappedColumnNames == null) {
@@ -168,11 +202,19 @@ class ResultSetWrapper {
     return unMappedColumnNames;
   }
 
+  /**
+   *  获取映射 key， 因为当里连接多个表时，可能会使用别名区分重复的列名，mybatis可以指定列名前缀，使得重复的列名会使用同一个映射规则（ResultMap）进行映射
+   * */
   private String getMapKey(ResultMap resultMap, String columnPrefix) {
     return resultMap.getId() + ":" + columnPrefix;
   }
 
-  //如果前缀，则获取所有列名，加上前缀封装成一个新的集合返回
+
+  /**
+   * @param columnNames 结果集中的所有列名
+   * @param prefix 列名前缀
+   *     将集合中的所有列名拼装上前缀返回
+   * */
   private Set<String> prependPrefixes(Set<String> columnNames, String prefix) {
     if (columnNames == null || columnNames.isEmpty() || prefix == null || prefix.length() == 0) {
       return columnNames;

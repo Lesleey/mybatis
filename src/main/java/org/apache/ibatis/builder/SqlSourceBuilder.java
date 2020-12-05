@@ -39,7 +39,7 @@ import org.apache.ibatis.type.JdbcType;
  * @author Clinton Begin
  */
 /**
- * SQL源码构建器
+ * SQL源构建器： 根据传入的参数对象，解析 sqlNode，返回要进行预编译的 sql语句
  * 
  */
 public class SqlSourceBuilder extends BaseBuilder {
@@ -50,16 +50,25 @@ public class SqlSourceBuilder extends BaseBuilder {
     super(configuration);
   }
 
+  /**
+   * @param originalSql 原生的sql语句，只可能包含 #{} 占位符
+   * @param parameterType 参数类型
+   * @param additionalParameters 附加的参数映射
+   *    解析原生sql里的所有 #{}占位符，替换为 "?", 返回静态sql源
+   * */
   public SqlSource parse(String originalSql, Class<?> parameterType, Map<String, Object> additionalParameters) {
+    //1. 构建参数映射记号处理器， 解析 #{}占位符内的内容为 ParameterMapping 对象
     ParameterMappingTokenHandler handler = new ParameterMappingTokenHandler(configuration, parameterType, additionalParameters);
-    //替换#{}中间的部分，逻辑在ParameterMappingTokenHandler中,并把相关的信息封装成parameterMapping类。
     GenericTokenParser parser = new GenericTokenParser("#{", "}", handler);
-    String sql = parser.parse(originalSql);  //返回sql完整语句，此时#{},已经被替换成了问好。
-    //返回静态SQL源码
+    //2. 解析过程，返回待预编译的sql语句， 此时所有的 #{} 都被替换为了 "?"
+    String sql = parser.parse(originalSql);
+    //3. 返回静态sql源
     return new StaticSqlSource(configuration, sql, handler.getParameterMappings());
   }
 
-  //参数映射记号处理器，静态内部类
+  /**
+   *  参数映射记号处理器
+   * */
   private static class ParameterMappingTokenHandler extends BaseBuilder implements TokenHandler {
 
     private List<ParameterMapping> parameterMappings = new ArrayList<ParameterMapping>();
@@ -76,23 +85,27 @@ public class SqlSourceBuilder extends BaseBuilder {
       return parameterMappings;
     }
 
+    /**
+     * @param content #{}占位符内里的内容
+     * */
     @Override
     public String handleToken(String content) {
-      //先构建参数映射
       parameterMappings.add(buildParameterMapping(content));
-      //如何替换很简单，永远是一个问号，但是参数的信息要记录在parameterMappings里面供后续使用
       return "?";
     }
 
-    //通过#{}里的内容构建参数映射
+    /**
+     * @param content #{}占位符内里的内容
+     *   通过 content 构建参数映射对象
+     * */
     private ParameterMapping buildParameterMapping(String content) {
         //先解析参数映射,就是转化成一个hashmap
       //#{favouriteSection,jdbcType=VARCHAR} 构建完成之后变成 property = favouriteSection,jdbcType = varchar
       Map<String, String> propertiesMap = parseParameterMapping(content);
       String property = propertiesMap.get("property");
       Class<?> propertyType;
-      //这里分支比较多，需要逐个理解
-      if (metaParameters.hasGetter(property)) { // 判断有没有解析过这个属性
+
+      if (metaParameters.hasGetter(property)) {
         propertyType = metaParameters.getGetterType(property);
       } else if (typeHandlerRegistry.hasTypeHandler(parameterType)) {
         propertyType = parameterType;

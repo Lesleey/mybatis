@@ -28,14 +28,14 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  */
 /**
  * 参数映射
- * 
+ *  #{property,javaType=int,jdbcType=NUMERIC}
  */
+
 public class ParameterMapping {
   //当前配置类
   private Configuration configuration;
 
-  //例子：#{property,javaType=int,jdbcType=NUMERIC}
-  
+
   //参数的属性
   private String property;
   //mode

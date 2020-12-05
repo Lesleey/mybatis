@@ -32,7 +32,7 @@ import org.apache.ibatis.session.Configuration;
  * @author Eduardo Macarron
  */
 /**
- * 原始SQL源码，比DynamicSqlSource快
+ * 原始SQL源，内部不包含动态sql或者 ${}占位符
  */
 public class RawSqlSource implements SqlSource {
 

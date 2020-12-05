@@ -46,16 +46,33 @@ import org.apache.ibatis.transaction.TransactionFactory;
  */
 public class ResultLoader {
 
+  /**
+   *   mybatis 的全局配置类
+   * */
   protected final Configuration configuration;
+
+  // 执行器对象
   protected final Executor executor;
-  //内嵌查询的mappedStatment
+
+  //懒加载查询的mappedStatment
   protected final MappedStatement mappedStatement;
-  //内嵌查询对应的参数
+
+  //懒加载查询所需的参数
   protected final Object parameterObject;
+
+  //内嵌查询的返回值类型
   protected final Class<?> targetType;
+
+  //对象工厂
   protected final ObjectFactory objectFactory;
+
+  // 内嵌查询对应的缓存key
   protected final CacheKey cacheKey;
+
+  // 内嵌查询对应的绑定sql
   protected final BoundSql boundSql;
+
+  // 结果抽取器
   protected final ResultExtractor resultExtractor;
   protected final long creatorThreadId;
   
@@ -75,22 +92,27 @@ public class ResultLoader {
     this.creatorThreadId = Thread.currentThread().getId();
   }
 
-  //加载结果
+  /**
+   *  加载结果对象
+   * */
   public Object loadResult() throws SQLException {
-	//1.selectList
+	//1. 从数据库中查询结果
     List<Object> list = selectList();
-    //2.ResultExtractor.extractObjectFromList
+    //2. 根据结果抽取器从查询结果中抽取真正的结果返回
     resultObject = resultExtractor.extractObjectFromList(list, targetType);
     return resultObject;
   }
 
-  //用来从数据库查询懒加载的属性。
+  /**
+   * 从数据库中查询结果
+   * */
   private <E> List<E> selectList() throws SQLException {
     Executor localExecutor = executor;
-    //如果executor已经被关闭了，则创建一个新的
+    //1. 如果executor已经被关闭了，则创建一个新的
     if (Thread.currentThread().getId() != this.creatorThreadId || localExecutor.isClosed()) {
       localExecutor = newExecutor();
     }
+    //2. 通过执行器查询结果
     try {
       return localExecutor.<E> query(mappedStatement, parameterObject, RowBounds.DEFAULT, Executor.NO_RESULT_HANDLER, cacheKey, boundSql);
     } finally {
@@ -100,6 +122,9 @@ public class ResultLoader {
     }
   }
 
+  /**
+   *  构建一个新的（简单）执行器
+   * */
   private Executor newExecutor() {
     final Environment environment = configuration.getEnvironment();
     if (environment == null) {
@@ -111,7 +136,6 @@ public class ResultLoader {
     }
     final TransactionFactory transactionFactory = environment.getTransactionFactory();
     final Transaction tx = transactionFactory.newTransaction(ds, null, false);
-    //如果executor已经被关闭了，则创建一个新的SimpleExecutor
     return configuration.newExecutor(tx, ExecutorType.SIMPLE);
   }
 

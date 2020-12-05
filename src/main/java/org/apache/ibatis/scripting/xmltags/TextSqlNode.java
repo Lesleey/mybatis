@@ -27,10 +27,14 @@ import org.apache.ibatis.type.SimpleTypeRegistry;
  * @author Clinton Begin
  */
 /**
- * 文本SQL节点（CDATA|TEXT）
+ * 文本SQL节点（CDATA|TEXT），该 text中包含 ${}占位符
  *
  */
 public class TextSqlNode implements SqlNode {
+
+  /**
+   *  文本节点的内容
+   * */
   private String text;
   private Pattern injectionFilter;
 
@@ -43,7 +47,6 @@ public class TextSqlNode implements SqlNode {
     this.injectionFilter = injectionFilter;
   }
   
-  //判断是否是动态sql，如果当前节点包括${}或者子节点比如<if><foreach>等，都是动态sql
   public boolean isDynamic() {
     DynamicCheckerTokenParser checker = new DynamicCheckerTokenParser();
     GenericTokenParser parser = createParser(checker);
@@ -51,6 +54,9 @@ public class TextSqlNode implements SqlNode {
     return checker.isDynamic();
   }
 
+  /**
+   *  根据参数替换 ${} 之间的内容
+   * */
   @Override
   public boolean apply(DynamicContext context) {
     GenericTokenParser parser = createParser(new BindingTokenParser(context, injectionFilter));
@@ -81,7 +87,6 @@ public class TextSqlNode implements SqlNode {
       } else if (SimpleTypeRegistry.isSimpleType(parameter.getClass())) {
         context.getBindings().put("value", parameter);
       }
-      //从缓存里取得值
       Object value = OgnlCache.getValue(content, context.getBindings());
       String srtValue = (value == null ? "" : String.valueOf(value)); // issue #274 return "" instead of "null"
       checkInjection(srtValue);
@@ -96,7 +101,9 @@ public class TextSqlNode implements SqlNode {
     }
   }
   
-  //动态SQL检查器
+  /**
+   *  动态toke检测器，用于检测当前的 token 是否为动态
+   * */
   private static class DynamicCheckerTokenParser implements TokenHandler {
 
     private boolean isDynamic;
@@ -111,7 +118,6 @@ public class TextSqlNode implements SqlNode {
 
     @Override
     public String handleToken(String content) {
-    	//灰常简单，设置isDynamic为true，即调用了这个类就必定是动态sql？？？
       this.isDynamic = true;
       return null;
     }

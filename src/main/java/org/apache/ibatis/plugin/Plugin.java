@@ -30,13 +30,25 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  * @author Clinton Begin
  */
 /**
- * 插件,用的代理模式
+ * 插件: 用的代理模式
  *
  */
 public class Plugin implements InvocationHandler {
 
+  /*
+   * 需要被代理的目标对象
+   **/
   private Object target;
+
+  /**
+   *  拦截器对象：类似于代理对象，用于提供额外功能
+   * */
   private Interceptor interceptor;
+
+
+  /**
+   *  key: 当前拦截器拦截的类对象， value: 拦截器拦截的类对象的方法对象
+   * */
   private Map<Class<?>, Set<Method>> signatureMap;
 
   private Plugin(Object target, Interceptor interceptor, Map<Class<?>, Set<Method>> signatureMap) {
@@ -46,13 +58,13 @@ public class Plugin implements InvocationHandler {
   }
 
   public static Object wrap(Object target, Interceptor interceptor) {
-    //取得签名Map
+    //1. 获取该拦截器拦截的类和其方法的信息
     Map<Class<?>, Set<Method>> signatureMap = getSignatureMap(interceptor);
-    //取得要改变行为的类(ParameterHandler|ResultSetHandler|StatementHandler|Executor)
+    //2. 获取目标类 ParameterHandler|ResultSetHandler|StatementHandler|Executor)
     Class<?> type = target.getClass();
-    //取得接口
+    //3. 获取接口
     Class<?>[] interfaces = getAllInterfaces(type, signatureMap);
-    //产生代理
+    //4. 构建代理类
     if (interfaces.length > 0) {
       return Proxy.newProxyInstance(
           type.getClassLoader(),
@@ -79,19 +91,22 @@ public class Plugin implements InvocationHandler {
     }
   }
 
-  //取得签名Map,要拦截的类对象，  拦截类对象中的方法
+
+  /**
+   *  返回该拦截器类拦截的类和指定的方法
+   *   key: 需要拦截的类， value: 该类中指定被拦截的方法
+   * */
   private static Map<Class<?>, Set<Method>> getSignatureMap(Interceptor interceptor) {
-    //取Intercepts注解，例子可参见ExamplePlugin.java
+    //1. 获取该插件类的 @Intercepts注解
     Intercepts interceptsAnnotation = interceptor.getClass().getAnnotation(Intercepts.class);
     // issue #251
-    //必须得有Intercepts注解，没有报错
     if (interceptsAnnotation == null) {
       throw new PluginException("No @Intercepts annotation was found in interceptor " + interceptor.getClass().getName());      
     }
-    //value是数组型，Signature的数组
     Signature[] sigs = interceptsAnnotation.value();
-    //每个class里有多个Method需要被拦截,所以这么定义
+    //2. 通过 map 保存被拦截对象和被拦截的方法
     Map<Class<?>, Set<Method>> signatureMap = new HashMap<Class<?>, Set<Method>>();
+    //3. 通过遍历获取注解的值
     for (Signature sig : sigs) {
       Set<Method> methods = signatureMap.get(sig.type());
       if (methods == null) {
@@ -108,14 +123,13 @@ public class Plugin implements InvocationHandler {
     return signatureMap;
   }
 
-  //取得接口
+  /**
+   *  保证目标类实现了 @Intercepts 指定的接口
+   * */
   private static Class<?>[] getAllInterfaces(Class<?> type, Map<Class<?>, Set<Method>> signatureMap) {
     Set<Class<?>> interfaces = new HashSet<Class<?>>();
     while (type != null) {
       for (Class<?> c : type.getInterfaces()) {
-        //貌似只能拦截ParameterHandler|ResultSetHandler|StatementHandler|Executor
-        //拦截其他的无效
-        //当然我们可以覆盖Plugin.wrap方法，达到拦截其他类的功能
         if (signatureMap.containsKey(c)) {
           interfaces.add(c);
         }

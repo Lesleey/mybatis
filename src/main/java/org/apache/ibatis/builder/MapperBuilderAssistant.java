@@ -71,14 +71,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
   private String currentNamespace;
 
   /**
-   *  当前的mapper资源路径
+   *  当前的mapper文件资源路径
    * */
   private String resource;
 
   /**
    *  当前命名空间对应的dao对象所使用的缓存
    * */
-  private Cache currentCache;     // 当前的缓存
+  private Cache currentCache;
+
+  /**
+   *  如果指定了 cache-Ref，标志当前的缓存引用是否解析完成
+   * */
   private boolean unresolvedCacheRef;
 
   public MapperBuilderAssistant(Configuration configuration, String resource) {
@@ -104,10 +108,14 @@ public class MapperBuilderAssistant extends BaseBuilder {
     this.currentNamespace = currentNamespace;
   }
 
-  //为id加上namespace前缀，如selectPerson-->org.a.b.selectPerson
+  /**
+   * @param base  基础字符串（不允许包含 "."）
+   * @param isReference 是否是为引用属性，比如resultMap属性、extends属性等等
+          为base 加上当前命名空间的前缀。如果已经加上则忽略， 用于保证在全局配置类中唯一
+   * */
   public String applyCurrentNamespace(String base, boolean isReference) {
     if (base == null) {
-      return null;
+       return null;
     }
     if (isReference) {
       // is it qualified with any namespace yet?
@@ -125,7 +133,11 @@ public class MapperBuilderAssistant extends BaseBuilder {
     }
     return currentNamespace + "." + base;
   }
-  //判断引用的namespace有没有对应的缓存，如果有则把他赋值到currentCache，否则抛出异常
+
+  /**
+   * @param namespace  指定的命名空间
+   *     获取对应的命名空间对应的缓存
+   * */
   public Cache useCacheRef(String namespace) {
     if (namespace == null) {
       throw new BuilderException("cache-ref element requires a namespace attribute.");
@@ -204,7 +216,9 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return builder.build();
   }
 
-  //增加ResultMap
+  /**
+   *  构建 ResultMap 并存储到 全局配置类 中
+   * */
   public ResultMap addResultMap(
       String id,
       Class<?> type,
@@ -212,23 +226,25 @@ public class MapperBuilderAssistant extends BaseBuilder {
       Discriminator discriminator,
       List<ResultMapping> resultMappings,
       Boolean autoMapping) {
-    id = applyCurrentNamespace(id, false);  //为id加上currentNamespace前缀。
-    extend = applyCurrentNamespace(extend, true); //为extend加上currentNamespace前缀。
+    //1. 为 id 和 extend 属性加上当前的命名空间前缀
+    id = applyCurrentNamespace(id, false);
+    extend = applyCurrentNamespace(extend, true);
 
-    //建造者模式
     ResultMap.Builder resultMapBuilder = new ResultMap.Builder(configuration, id, type, resultMappings, autoMapping);
+    //2. 如果指定了继承的 resultMap
     if (extend != null) {
-      if (!configuration.hasResultMap(extend)) {  //会从当前配置configuration寻找当前继承的resultMap是否已经存在。
+       //2.1 如果当前全局配置类中没有对应的 ReusltMap，则表示可能对应的 resultMap 还未解析，则抛出该异常
+      if (!configuration.hasResultMap(extend)) {
         throw new IncompleteElementException("Could not find a parent resultmap with id '" + extend + "'");
       }
       ResultMap resultMap = configuration.getResultMap(extend);
       List<ResultMapping> extendedResultMappings = new ArrayList<ResultMapping>(resultMap.getResultMappings());
+      //2.2 继承下所有的 resultMapping 去掉包含构造器标志ResultFlag.CONSTRUCTOR的 resultMapping，继承不应该继承构造器
       extendedResultMappings.removeAll(resultMappings);
-      // 移除父类声明的所有flags属性包括构造器的RequestMapping.意思是继承的requestMapping不包括构造器。
       boolean declaresConstructor = false;
       for (ResultMapping resultMapping : resultMappings) {
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
-          declaresConstructor = true;
+            declaresConstructor = true;
           break;
         }
       }
@@ -240,12 +256,12 @@ public class MapperBuilderAssistant extends BaseBuilder {
           }
         }
       }
+      //2.3 将继承下来的 resultMapping 添加到集合中
       resultMappings.addAll(extendedResultMappings);
     }
     resultMapBuilder.discriminator(discriminator);
     ResultMap resultMap = resultMapBuilder.build();
-    //将当前的resultMap添加到configuration的resultMaps中，key为resultMap的id,value为resultMap，添加时在做了两次检测，暂时不知道什么东东
-    // protected final Map<String, ResultMap> resultMaps = new StrictMap<ResultMap>("Result Maps collection")
+
     configuration.addResultMap(resultMap);
     return resultMap;
   }
@@ -272,17 +288,22 @@ public class MapperBuilderAssistant extends BaseBuilder {
         null,
         null,
         false);
+    //1. key: case对应的值, value: 对应的ResultMap在全局配置（当前mapper）中的唯一标识
     Map<String, String> namespaceDiscriminatorMap = new HashMap<String, String>();
+    //2. 遍历所有的 value，按情况给 resultmapid 添加当前命名空间前缀
     for (Map.Entry<String, String> e : discriminatorMap.entrySet()) {
       String resultMap = e.getValue();
       resultMap = applyCurrentNamespace(resultMap, true);
       namespaceDiscriminatorMap.put(e.getKey(), resultMap);
     }
+    //3. 构建鉴别器
     Discriminator.Builder discriminatorBuilder = new Discriminator.Builder(configuration, resultMapping, namespaceDiscriminatorMap);
     return discriminatorBuilder.build();
   }
 
-  //增加映射语句
+  /**
+   *   构建 MappedStatement 对象，并保存到全局配置类 Configuration 中
+   * */
   public MappedStatement addMappedStatement(
       String id,
       SqlSource sqlSource,
@@ -309,12 +330,10 @@ public class MapperBuilderAssistant extends BaseBuilder {
       throw new IncompleteElementException("Cache-ref not yet resolved");
     }
     
-    //为id加上namespace前缀
+    //1. 为id加上namespace前缀
     id = applyCurrentNamespace(id, false);
-    //是否是select语句
     boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
 
-    //又是建造者模式
     MappedStatement.Builder statementBuilder = new MappedStatement.Builder(configuration, id, sqlSource, sqlCommandType);
     statementBuilder.resource(resource);
     statementBuilder.fetchSize(fetchSize);
@@ -328,14 +347,13 @@ public class MapperBuilderAssistant extends BaseBuilder {
     statementBuilder.resulSets(resultSets);
     setStatementTimeout(timeout, statementBuilder);
 
-    //1.参数映射
+    //2. 设置构建类的 ParameterMap、ResultMap和 Cache相关的属性
     setStatementParameterMap(parameterMap, parameterType, statementBuilder);
-    //2.结果映射
     setStatementResultMap(resultMap, resultType, resultSetType, statementBuilder);
     setStatementCache(isSelect, flushCache, useCache, currentCache, statementBuilder);
 
     MappedStatement statement = statementBuilder.build();
-    //建造好调用configuration.addMappedStatement
+    //3. 将构建好的 MappedStatment 保存到 Configuration 类中
     configuration.addMappedStatement(statement);
     return statement;
   }
@@ -344,14 +362,20 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return value == null ? defaultValue : value;
   }
 
+  /**
+   *  为MappedStatement构建类设置缓存相关的属性
+   * */
   private void setStatementCache(
       boolean isSelect,
       boolean flushCache,
       boolean useCache,
       Cache cache,
       MappedStatement.Builder statementBuilder) {
+    //1. 是否刷新缓存，默认不是查询语句都要刷新
     flushCache = valueOrDefault(flushCache, !isSelect);
+    //2. 是否使用缓存，默认是查询语句都要使用
     useCache = valueOrDefault(useCache, isSelect);
+    //3. 设置基本属性
     statementBuilder.flushCacheRequired(flushCache);
     statementBuilder.useCache(useCache);
     statementBuilder.cache(cache);
@@ -380,7 +404,9 @@ public class MapperBuilderAssistant extends BaseBuilder {
     }
   }
 
-  //2.result map
+  /**
+   *  为 MappedStatement 构建类 设置 resultMaps属性的值
+   * */
   private void setStatementResultMap(
       String resultMap,
       Class<?> resultType,
@@ -389,8 +415,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
     resultMap = applyCurrentNamespace(resultMap, true);
 
     List<ResultMap> resultMaps = new ArrayList<ResultMap>();
+    //1. 如果该 sql语句节点指定了 resultMap(多个用 "," 分隔)，则去全局配置类中寻找对应的 ResultMap 对象
     if (resultMap != null) {
-      //2.1 resultMap是高级功能
       String[] resultMapNames = resultMap.split(",");
       for (String resultMapName : resultMapNames) {
         try {
@@ -399,14 +425,8 @@ public class MapperBuilderAssistant extends BaseBuilder {
           throw new IncompleteElementException("Could not find result map " + resultMapName, e);
         }
       }
+    //2. 如果指定了 resultType, 则会通过ResultType构建 ResultMap 则会根据全局配置是否自动映射（默认为自动映射）,将 resultSet 结果映射到 ResultType指定的类中
     } else if (resultType != null) {
-      //2.2 resultType,一般用这个足矣了
-      //<select id="selectUsers" resultType="User">
-      //这种情况下,MyBatis 会在幕后自动创建一个 ResultMap,基于属性名来映射列到 JavaBean 的属性上。
-      //如果列名没有精确匹配,你可以在列名上使用 select 字句的别名来匹配标签。
-      //创建一个inline result map, 把resultType设上就OK了，
-      //然后后面被DefaultResultSetHandler.createResultObject()使用
-      //DefaultResultSetHandler.getRowValue()使用
       ResultMap.Builder inlineResultMapBuilder = new ResultMap.Builder(
           configuration,
           statementBuilder.id() + "-Inline",
@@ -427,7 +447,9 @@ public class MapperBuilderAssistant extends BaseBuilder {
     statementBuilder.timeout(timeout);
   }
 
-  //构建result map
+  /**
+   *  构建 ResultMapping 对象
+   * */
   public ResultMapping buildResultMapping(
       Class<?> resultType,
       String property,
@@ -443,14 +465,16 @@ public class MapperBuilderAssistant extends BaseBuilder {
       String resultSet,
       String foreignColumn, 
       boolean lazy) {
+    //1. 获取对应字段的类型
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
+    //2. 获取对应的类型处理器
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
-    //解析复合的列名,一般用不到，返回的是空
+    //3. 解析复合列名
     List<ResultMapping> composites = parseCompositeColumnName(column);
     if (composites.size() > 0) {
       column = null;
     }
-    //建造者模式。通过获取到的属性，建造resultMapping返回
+    //4. 通过建造者模式构建 ResultMapping
     ResultMapping.Builder builder = new ResultMapping.Builder(configuration, property, column, javaTypeClass);
     builder.jdbcType(jdbcType);
     builder.nestedQueryId(applyCurrentNamespace(nestedSelect, true));
@@ -482,7 +506,9 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return columns;
   }
 
-  //解析复合列名，即列名由多个组成，可以先忽略
+  /**
+   *  解析复合列名：可以指定 column={prop1=column1, prop2=column2}的方式传递多个参数
+   * */
   private List<ResultMapping> parseCompositeColumnName(String columnName) {
     List<ResultMapping> composites = new ArrayList<ResultMapping>();
     if (columnName != null && (columnName.indexOf('=') > -1 || columnName.indexOf(',') > -1)) {
@@ -497,7 +523,14 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return composites;
   }
 
+  /**
+   * @param resultType  resultMap 对应的映射的java类型
+   * @param javaType 通过配置配置的字段的java类型
+   * @param property 映射的类对象的字段名称
+   *      获取类对象对应字段的属性名称
+   * */
   private Class<?> resolveResultJavaType(Class<?> resultType, String property, Class<?> javaType) {
+    //1. 如果只指定了字段名称，则通过反射获取对应的字段类型
     if (javaType == null && property != null) {
       try {
         MetaClass metaResultType = MetaClass.forClass(resultType);
@@ -506,6 +539,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
         //ignore, following null check statement will deal with the situation
       }
     }
+    //2. 如果没有指定属性名称, 则默认为 Object类型
     if (javaType == null) {
       javaType = Object.class;
     }
@@ -548,16 +582,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
         nestedResultMap, notNullColumn, columnPrefix, typeHandler, flags, null, null, configuration.isLazyLoadingEnabled());
   }  
 
-  //取得语言驱动
+  /**
+   *  @param langClass  根据sql语句节点指定的语言驱动，获取对应的语言驱动
+   * */
   public LanguageDriver getLanguageDriver(Class<?> langClass) {
+    //1. 如果指定了语言驱动类，则会先注册
     if (langClass != null) {
-        //注册语言驱动
       configuration.getLanguageRegistry().register(langClass);
+    //2. 如果没有指定，则获取默认的语言驱动类
     } else {
-        //如果为null，则取得默认驱动（mybatis3.2以前大家一直用的方法）
       langClass = configuration.getLanguageRegistry().getDefaultDriverClass();
     }
-    //再去调configuration
+    //3. 根据语言驱动类获取对应的语言驱动实例
     return configuration.getLanguageRegistry().getDriver(langClass);
   }
 

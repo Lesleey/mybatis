@@ -31,6 +31,8 @@ import org.apache.ibatis.io.Resources;
  * @see https://github.com/ibatis/ibatis-3/issues/161
  * 
  * @author Daniel Guggi
+ *
+ *   用于由类名到类路径中找到Class文件，进行类加载过程，以支持静态属性或者方法的调用
  * 
  */
 public class OgnlClassResolver implements ClassResolver {

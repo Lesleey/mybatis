@@ -22,16 +22,23 @@ import java.lang.reflect.Method;
  * @author Clinton Begin
  */
 /**
- * 调用
- *
+ * 调用: 用来保存执行的方法信息
  */
 public class Invocation {
 
-  //调用的对象
+  /**
+   *  执行方法的对象
+   * */
   private Object target;
-  //调用的方法
+
+  /**
+   *  执行的方法对象
+   * */
   private Method method;
-  //参数
+
+  /**
+   *  方法的执行参数
+   * */
   private Object[] args;
 
   public Invocation(Object target, Method method, Object[] args) {
@@ -52,7 +59,6 @@ public class Invocation {
     return args;
   }
 
-  //继续做下去
   public Object proceed() throws InvocationTargetException, IllegalAccessException {
     return method.invoke(target, args);
   }

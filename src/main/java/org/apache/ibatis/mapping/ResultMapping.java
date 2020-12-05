@@ -30,43 +30,79 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  * @author Clinton Begin
  */
 /**
- * 结果映射
- * MyBatis 中最重要最强大的元素
+ * 结果映射： 结果映射比较重要的部分
+ * https://mybatis.org/mybatis-3/zh/sqlmap-xml.html#Parameters
  */
 public class ResultMapping {
-  //当前配置
+  /**
+   *  当前的全局配置类
+   * */
   private Configuration configuration;
-  //所映射的属性，java类的属性
+
+  /**
+   *  所映射的java类的字段名称
+   * */
   private String property;
-  //数据库的列名
+
+  /**
+   *  所映射的数据库的列名
+   * */
   private String column;
-  //该值所属的java类型
+
+  /**
+   *  字段的java类型
+   * */
   private Class<?> javaType;
-  //数据库该列所属的jdbc数据类型
+
+  /**
+   *  数据库中该列名所对应的值的jdbc类型
+   * */
   private JdbcType jdbcType;
-  //映射所要用的类型处理器
+
+  /**
+   *  类型处理器：处理映射之间的类型转化工作
+   * */
   private TypeHandler<?> typeHandler;
-  //内嵌的resultMap的id
+
+  /**
+   *  如果该映射为复杂映射,例如<case/>、<resultMap/>等等，所对应的唯一标示
+   * */
   private String nestedResultMapId;
-  //内嵌的queryId
+
+  /**
+   *  子查询的唯一标示，如果指定 <select/> 属性，则为该查询的唯一标识
+   * */
   private String nestedQueryId;
-  //
+
+  /**
+   * 指定的非空列，只有指定的非空列非空时，该子对象才会被创建
+   * */
   private Set<String> notNullColumns;
+
+  /**
+   *  当连接多个表时，多个表的列名可能会重复，通过指定 columnPrefix，使得指定前缀的列名才会被当前子对象映射
+   * */
   private String columnPrefix;
-  //该列的标志
+
+  /**
+   *  结果标志
+   * */
   private List<ResultFlag> flags;
+
+  //--------------------多结果集------------------------
   private List<ResultMapping> composites;
-  //?
   private String resultSet;
-  //外键列名
   private String foreignColumn;
-  //是否懒加载
+
+
+  /**
+   *  当前映射的字段是否需要懒加载
+   * */
   private boolean lazy;
 
   ResultMapping() {
   }
 
-  //静态内部类，建造者模式
   public static class Builder {
     private ResultMapping resultMapping = new ResultMapping();
 
@@ -151,15 +187,19 @@ public class ResultMapping {
     }
     
     public ResultMapping build() {
-      // 让集合编程不可变对象集合
+      //1. 修改集合为不可更改
       resultMapping.flags = Collections.unmodifiableList(resultMapping.flags);
       resultMapping.composites = Collections.unmodifiableList(resultMapping.composites);
-      resolveTypeHandler();   //根据属性javaType, jdbcType从configuration的类型处理器上获取typeHandler，然后赋值到当前ResultMapping类的typeHandler属性上。
-      validate();   //逻辑验证，验证resultMap有没有逻辑上的书写错误，
+      //2. 获取当前 resultMapping 所使用的类型处理器
+      resolveTypeHandler();
+      //3. 验证 resultMapping 的逻辑性
+      validate();
       return resultMapping;
     }
 
-    //一些验证逻辑,验证result map有没有写错
+    /**
+     *  验证 resultMapping 中的逻辑是否写错
+     * */
     private void validate() {
       // Issue #697: cannot define both nestedQueryId and nestedResultMapId
       if (resultMapping.nestedQueryId != null && resultMapping.nestedResultMapId != null) {
@@ -187,7 +227,10 @@ public class ResultMapping {
         }
       }
     }
-    
+
+    /**
+     * 解析 TypeHandler： 如果没有在配置文件中指定类型处理器，则通过指定的javaType和jdbcType从类型处理注册器中获取
+     * */
     private void resolveTypeHandler() {
       if (resultMapping.typeHandler == null && resultMapping.javaType != null) {
         Configuration configuration = resultMapping.configuration;

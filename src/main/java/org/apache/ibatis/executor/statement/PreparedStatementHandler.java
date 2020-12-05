@@ -43,15 +43,18 @@ public class PreparedStatementHandler extends BaseStatementHandler {
     super(executor, mappedStatement, parameter, rowBounds, resultHandler, boundSql);
   }
 
-  //执行prepareStatment的execute方法。执行之后然后调用keyGenerator的会调方法
+  /**
+   *  执行 update | delete | insert 语句
+   * */
   @Override
   public int update(Statement statement) throws SQLException {
-    //调用PreparedStatement.execute和PreparedStatement.getUpdateCount
     PreparedStatement ps = (PreparedStatement) statement;
     ps.execute();
+    //1. 执行 preparedStatement 对象的执行sql的方法
     int rows = ps.getUpdateCount();
     Object parameterObject = boundSql.getParameterObject();
     KeyGenerator keyGenerator = mappedStatement.getKeyGenerator();
+    //2. 执行 键值生成器的回调处理方法
     keyGenerator.processAfter(executor, mappedStatement, ps, parameterObject);
     return rows;
   }
@@ -62,7 +65,6 @@ public class PreparedStatementHandler extends BaseStatementHandler {
     ps.addBatch();
   }
 
-  //执行preparedStatment的查询方法
   @Override
   public <E> List<E> query(Statement statement, ResultHandler resultHandler) throws SQLException {
     PreparedStatement ps = (PreparedStatement) statement;
@@ -71,12 +73,12 @@ public class PreparedStatementHandler extends BaseStatementHandler {
   }
 
 
-  //准备一个prepareStatment.
+  /**
+   *  通过 connection.prepareStatement 方法初始化 PrepareStatement 对象
+   * */
   @Override
   protected Statement instantiateStatement(Connection connection) throws SQLException {
-    //调用Connection.prepareStatement
     String sql = boundSql.getSql();
-    //判断当前映射语句是否包括键值生成器
     if (mappedStatement.getKeyGenerator() instanceof Jdbc3KeyGenerator) {
       String[] keyColumnNames = mappedStatement.getKeyColumns();
       if (keyColumnNames == null) {
@@ -91,10 +93,11 @@ public class PreparedStatementHandler extends BaseStatementHandler {
     }
   }
 
-  //设置参数，就是将预编译之后的?,设置为具体的值
+  /**
+   *   通过参数处理器 为预编译的sql 语句设置参数
+   * */
   @Override
   public void parameterize(Statement statement) throws SQLException {
-    //调用ParameterHandler.setParameters
     parameterHandler.setParameters((PreparedStatement) statement);
   }
 

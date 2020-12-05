@@ -19,7 +19,7 @@ package org.apache.ibatis.cache;
  * @author Clinton Begin
  */
 /**
- * Null值缓存key
+ * 缓存项为Null时，所使用的 cache key
  * 
  */
 public final class NullCacheKey extends CacheKey {

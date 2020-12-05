@@ -31,9 +31,12 @@ public final class PropertyNamer {
   private PropertyNamer() {
   }
 
-    //通过方法名获取对应的属性名
+  /**
+   * @param name 方法名称
+   *   通过方法名称获取对应的字段名称
+   * */
   public static String methodToProperty(String name) {
-      //去掉get|set|is
+    // 1.去掉get|set|is
     if (name.startsWith("is")) {
       name = name.substring(2);
     } else if (name.startsWith("get") || name.startsWith("set")) {
@@ -42,8 +45,7 @@ public final class PropertyNamer {
       throw new ReflectionException("Error parsing property name '" + name + "'.  Didn't start with 'is', 'get' or 'set'.");
     }
 
-    //如果当前name长度为一，或者name长度大于一，但是它的第二个字母不是大写
-    //让name的第一个字母转化为小写
+    //2. 让name的第一个字母转化为小写
     if (name.length() == 1 || (name.length() > 1 && !Character.isUpperCase(name.charAt(1)))) {
       name = name.substring(0, 1).toLowerCase(Locale.ENGLISH) + name.substring(1);
     }
@@ -51,17 +53,26 @@ public final class PropertyNamer {
     return name;
   }
 
-  //name是否是以get | set | is开头
+  /**
+   * @param name 方法名称
+   *   通过方法名称判断是否是对字段的get或者set操作
+   * */
   public static boolean isProperty(String name) {
     return name.startsWith("get") || name.startsWith("set") || name.startsWith("is");
   }
 
-  //name是否是以get | is开头
+  /**
+   * @param name 方法名称
+   *  通过方法名称判断是否为 get 方法
+   * */
   public static boolean isGetter(String name) {
     return name.startsWith("get") || name.startsWith("is");
   }
 
-  //name 是否是以 set 开头
+  /**
+   * @param name 方法名称
+   *    通过方法名称判断是否为 set 方法
+   * */
   public static boolean isSetter(String name) {
     return name.startsWith("set");
   }

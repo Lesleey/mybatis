@@ -38,10 +38,17 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  */
 public final class ResultSetLogger extends BaseJdbcLogger implements InvocationHandler {
 
+  /**
+   *  所有的二进制类型
+   * */
   private static Set<Integer> BLOB_TYPES = new HashSet<Integer>();
   private boolean first = true;
   private int rows = 0;
   private ResultSet rs;
+
+  /**
+   *  用于记录第几列为 blob 类型
+   * */
   private Set<Integer> blobColumns = new HashSet<Integer>();
 
   static {
@@ -67,6 +74,7 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
         return method.invoke(this, params);
       }    
       Object o = method.invoke(rs, params);
+      // 如果调用的方法为 next() 方法
       if ("next".equals(method.getName())) {
         if (((Boolean) o)) {
           rows++;
@@ -90,6 +98,9 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
     }
   }
 
+  /**
+   *  打印结果集返回的所有的列名
+   * */
   private void printColumnHeaders(ResultSetMetaData rsmd, int columnCount) throws SQLException {
     StringBuilder row = new StringBuilder();
     row.append("   Columns: ");
@@ -106,6 +117,9 @@ public final class ResultSetLogger extends BaseJdbcLogger implements InvocationH
     trace(row.toString(), false);
   }
 
+  /**
+   *  打印结果集中的所有列的值
+   * */
   private void printColumnValues(int columnCount) {
     StringBuilder row = new StringBuilder();
     row.append("       Row: ");

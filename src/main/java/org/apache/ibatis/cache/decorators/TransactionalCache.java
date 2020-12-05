@@ -35,23 +35,30 @@ import org.apache.ibatis.cache.Cache;
  * @author Eduardo Macarron
  */
 /**
- * 事务缓存
- * 一次性存入多个缓存，移除多个缓存
+ * 事务缓存：提供类似数据库事务的提交、回滚操作
+ *
+ *   {@link #clear()}和{@link #putObject(Object, Object)} 方法类似于数据库中的删除和新增操作。
+ *
+ *   提供回滚和提交操作
  *
  */
 public class TransactionalCache implements Cache {
 
   private Cache delegate;
-  //commit时要不要清缓存
   private boolean clearOnCommit;
-  //commit时要添加的元素
+
+  /**
+   *  待添加到真实 delegate 中的键值对，回滚会被清除，提交才会真正的添加到真实的缓存中
+   * */
   private Map<Object, Object> entriesToAddOnCommit;
-  //没有命中的object
+
+  /**
+   *  存储没有命中的缓存 key
+   * */
   private Set<Object> entriesMissedInCache;
 
   public TransactionalCache(Cache delegate) {
     this.delegate = delegate;
-    //默认commit时不清缓存
     this.clearOnCommit = false;
     this.entriesToAddOnCommit = new HashMap<Object, Object>();
     this.entriesMissedInCache = new HashSet<Object>();
@@ -70,11 +77,15 @@ public class TransactionalCache implements Cache {
   @Override
   public Object getObject(Object key) {
     // issue #116
+    //1. 从真实的缓存获取对象
     Object object = delegate.getObject(key);
+    //2. 类似于布隆过滤器,添加值为空的缓存
     if (object == null) {
       entriesMissedInCache.add(key);
     }
+
     // issue #146
+    //3. 如果已被清空，则返回空，否则返回获取到的对象
     if (clearOnCommit) {
       return null;
     } else {
@@ -97,18 +108,26 @@ public class TransactionalCache implements Cache {
     return null;
   }
 
+  /**
+   *  清空待提交的事务
+   * */
   @Override
   public void clear() {
     clearOnCommit = true;
     entriesToAddOnCommit.clear();
   }
 
-  //多了commit方法，提供事务功能
+  /**
+   *  提交修改
+   * */
   public void commit() {
+    //1. 如果调用了 clear() 方法，清除缓存
     if (clearOnCommit) {
       delegate.clear();
     }
+    //2. 将新增的键值对添加到真实的缓存中
     flushPendingEntries();
+    //3. 重置当前对象的属性为初始化状态
     reset();
   }
 
@@ -117,12 +136,18 @@ public class TransactionalCache implements Cache {
     reset();
   }
 
+  /**
+   * 重置当前对象的属性为初始化状态
+   * */
   private void reset() {
     clearOnCommit = false;
     entriesToAddOnCommit.clear();
     entriesMissedInCache.clear();
   }
 
+  /**
+   * 提交修改（新增），到真实的缓存中
+   * */
   private void flushPendingEntries() {
     for (Map.Entry<Object, Object> entry : entriesToAddOnCommit.entrySet()) {
       delegate.putObject(entry.getKey(), entry.getValue());

@@ -35,7 +35,7 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  * @author Clinton Begin
  */
 /**
- * JDBC3键值生成器,核心是使用JDBC3的Statement.getGeneratedKeys
+ * JDBC3键值生成器,核心是使用JDBC3的Statement.getGeneratedKeys：相当于将自动递增的键作为 keyColumn
  * 
  */
 public class Jdbc3KeyGenerator implements KeyGenerator {
@@ -52,29 +52,37 @@ public class Jdbc3KeyGenerator implements KeyGenerator {
     processBatch(ms, stmt, parameters);
   }
 
-  //批处理
+  /**
+   *  对多个参数进行批处理工作（填充键值）
+   * */
   public void processBatch(MappedStatement ms, Statement stmt, List<Object> parameters) {
     ResultSet rs = null;
     try {
-      //核心是使用JDBC3的Statement.getGeneratedKeys
+      //1. 获取自动递增的列的值作为结果集，如果不存在，则该结果集为空
       rs = stmt.getGeneratedKeys();
       final Configuration configuration = ms.getConfiguration();
+      //2. 获取类型处理注册器，用于获取合适的类型处理器
       final TypeHandlerRegistry typeHandlerRegistry = configuration.getTypeHandlerRegistry();
+      //3. 获取指定的 keyProperties 键属性
       final String[] keyProperties = ms.getKeyProperties();
       final ResultSetMetaData rsmd = rs.getMetaData();
       TypeHandler<?>[] typeHandlers = null;
+      //4. 如果结果集中返回的列数小于指定的键属性的数量，则直接返回
       if (keyProperties != null && rsmd.getColumnCount() >= keyProperties.length) {
+        //5. 遍历所有的参数，进行填充键值的工作
         for (Object parameter : parameters) {
           // there should be one row for each statement (also one for each parameter)
+          //5.1 如果当前游标已经指向了最后一行，则退出循环
           if (!rs.next()) {
             break;
           }
+          //5.2 构建元数据，用于设置某个属性的值
           final MetaObject metaParam = configuration.newMetaObject(parameter);
+
           if (typeHandlers == null) {
-            //先取得类型处理器
             typeHandlers = getTypeHandlers(typeHandlerRegistry, metaParam, keyProperties);
           }
-          //填充键值
+          //5.3 填充键值
           populateKeys(rs, metaParam, keyProperties, typeHandlers);
         }
       }
@@ -91,11 +99,16 @@ public class Jdbc3KeyGenerator implements KeyGenerator {
     }
   }
 
-  //通过参数和keyProperties，获得每个属性对应的类型处理器。
+  /**
+   *  根据元数据中所有属性的类型，获取对应的类型处理器
+   * */
   private TypeHandler<?>[] getTypeHandlers(TypeHandlerRegistry typeHandlerRegistry, MetaObject metaParam, String[] keyProperties) {
     TypeHandler<?>[] typeHandlers = new TypeHandler<?>[keyProperties.length];
+    // 遍历所有指定的 keyProperties，获取对应的类型以及类型处理器
     for (int i = 0; i < keyProperties.length; i++) {
+      // 如果该属性有set调用者
       if (metaParam.hasSetter(keyProperties[i])) {
+        // 获取该 keyProperties 的类型，并获取对应的类型处理器
         Class<?> keyPropertyType = metaParam.getSetterType(keyProperties[i]);
         TypeHandler<?> th = typeHandlerRegistry.getTypeHandler(keyPropertyType);
         typeHandlers[i] = th;
@@ -104,7 +117,9 @@ public class Jdbc3KeyGenerator implements KeyGenerator {
     return typeHandlers;
   }
 
-  //通过结果集，和mapper文件中的keyProperties,先通过类型处理器获得结果集对应列的值，在给参数对应的属性赋值
+  /**
+   * 根据结果集，为参数对象填充 keyProperties 指定的所有属性的值
+   * */
   private void populateKeys(ResultSet rs, MetaObject metaParam, String[] keyProperties, TypeHandler<?>[] typeHandlers) throws SQLException {
     for (int i = 0; i < keyProperties.length; i++) {
       TypeHandler<?> th = typeHandlers[i];

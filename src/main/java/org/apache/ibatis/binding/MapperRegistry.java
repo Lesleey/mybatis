@@ -35,7 +35,7 @@ import java.util.Set;
  * @author Lasse Voss
  */
 /**
- * 映射器注册器
+ * mapper注册器
  *
  */
 public class MapperRegistry {
@@ -54,7 +54,12 @@ public class MapperRegistry {
   }
 
 
+  /**
+   * @param type  dao接口对应的类对象
+   * @param sqlSession 哪个会话获取的当前dao的动态代理类
+   * */
   public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+
     final MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory<T>) knownMappers.get(type);
     if (mapperProxyFactory == null) {
       throw new BindingException("Type " + type + " is not known to the MapperRegistry.");

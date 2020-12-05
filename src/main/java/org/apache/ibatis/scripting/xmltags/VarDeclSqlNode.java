@@ -17,10 +17,18 @@ package org.apache.ibatis.scripting.xmltags;
 
 /**
  * @author Frank D. Martinez [mnesarco]
+ *  手动向动态上下文中绑定一个属性名和对应表达式的对应关系
  */
 public class VarDeclSqlNode implements SqlNode {
 
+  /**
+   * 属性名称
+   * */
   private final String name;
+
+  /**
+   *  ognl表达式
+   * */
   private final String expression;
 
   public VarDeclSqlNode(String var, String exp) {

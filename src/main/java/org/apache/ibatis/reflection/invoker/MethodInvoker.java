@@ -22,18 +22,24 @@ import java.lang.reflect.Method;
  * @author Clinton Begin
  */
 /**
- * 方法调用者
+ * 方法调用者： 通过反射调用某个对象的某个方法
  * 
  */
 public class MethodInvoker implements Invoker {
 
+  /**
+   *  如果只有一个参数，则该字段的值为方法的参数类型，否则为方法的返回类型
+   * */
   private Class<?> type;
+
+  /**
+   *  需要被调用的方法对象
+   * */
   private Method method;
 
   public MethodInvoker(Method method) {
     this.method = method;
 
-    //如果只有一个参数，返回参数类型，否则返回return的类型
     if (method.getParameterTypes().length == 1) {
       type = method.getParameterTypes()[0];
     } else {
@@ -41,7 +47,6 @@ public class MethodInvoker implements Invoker {
     }
   }
 
-  //就是调用Method.invoke
   @Override
   public Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException {
     return method.invoke(target, args);

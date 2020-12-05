@@ -28,23 +28,56 @@ import org.apache.ibatis.reflection.ExceptionUtil;
  * @author Clinton Begin
  */
 /**
- * 池化的连接
+ *  池化的连接: 是数据库连接 Connection 的代理类
  */
 class PooledConnection implements InvocationHandler {
 
   private static final String CLOSE = "close";
   private static final Class<?>[] IFACES = new Class<?>[] { Connection.class };
 
+  /**
+   *  所代理数据库连接的哈希码
+   * */
   private int hashCode = 0;
+
+  /**
+   *  获取该连接的数据源
+   * */
   private PooledDataSource dataSource;
-  //真正的连接
+
+  /**
+   *  真正的数据库连接对象
+   * */
   private Connection realConnection;
-  //代理的连接
+
+  /**
+   *  数据库连接代理对象： 当调用 close 方法时不关闭，而是将连接返回到连接池
+   * */
   private Connection proxyConnection;
+
+  /**
+   *  当前数据库连接被获取的时间
+   * */
   private long checkoutTimestamp;
+
+  /**
+   *  该连接被创建的时间
+   * */
   private long createdTimestamp;
+
+  /**
+   *  当前数据库连接被使用的时间
+   * */
   private long lastUsedTimestamp;
+
+  /**
+   *  当前的连接类型的哈希码，由 url + user + password 决定, 用于判断连接是否为某数据源产生
+   * */
   private int connectionTypeCode;
+
+  /**
+   *  当前连接还是否有效
+   * */
   private boolean valid;
 
   /*

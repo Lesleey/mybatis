@@ -30,7 +30,7 @@ import org.apache.ibatis.executor.BatchResult;
  * @author Clinton Begin
  */
 /**
- * 这是MyBatis主要的一个类，用来执行SQL，获取映射器，管理事务
+ * 这是MyBatis主要的一个类，用来执行SQL，获取dao 动态代理对象(用于执行dao内部的方法)，管理事务
  *
  * 通常情况下，我们在应用程序中使用的Mybatis的API就是这个接口定义的方法。
  *
@@ -86,7 +86,6 @@ public interface SqlSession extends Closeable {
    * 所有的数据查询出来以后，然后在内存中进行分页。因此在实际的情况中，需要注意
    * 这一点。
    *
-   * 一般情况下公司都会编写自己的Mybatis 物理分页插件
    * @param <E> the returned list element type
    * @param statement Unique identifier matching the statement to use.
    * @param parameter A parameter object to pass to the statement.

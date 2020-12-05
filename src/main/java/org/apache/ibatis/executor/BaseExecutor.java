@@ -56,22 +56,45 @@ public abstract class BaseExecutor implements Executor {
 
   private static final Log log = LogFactory.getLog(BaseExecutor.class);
 
+  /**
+   *  事务对象，用于对数据库连接的提交、回滚等操作
+   * */
   protected Transaction transaction;
+
+  /**
+   *  执行器对象： 用于真正执行sql语句、封装返回的结果等等
+   * */
   protected Executor wrapper;
 
-  //延迟加载队列（线程安全）
+  /**
+   *  延迟加载队列（线程安全）
+   * */
   protected ConcurrentLinkedQueue<DeferredLoad> deferredLoads;
-  //本地缓存机制（Local Cache）防止循环引用（circular references）和加速重复嵌套查询(一级缓存)
-  //本地缓存,一个sqlSesion一个执行器，本地缓存就是sqlSesion或statment级别的缓存。可以设置本地缓存
+
+  /**
+   *  本地缓存（sqlSession或者 statment级别的缓存）： 本地缓存机制，防止循环引用和加速重复嵌套查询
+   * */
   protected PerpetualCache localCache;
-  //本地输出参数缓存
+
+  /**
+   * 如果是存储过程, 存储传入的参数
+   *  key: 当前执行sql的cacheKey, value: 参数对象
+   * */
   protected PerpetualCache localOutputParameterCache;
-  //当前的配置类
+
+  /**
+   *  当前的配置类
+   * */
   protected Configuration configuration;
 
-  //查询堆栈
+  /**
+   *  查询堆栈的深度
+   * */
   protected int queryStack = 0;
-  //是否已经关闭连接
+
+  /**
+   *  是否已经关闭连接
+   * */
   private boolean closed;
 
   protected BaseExecutor(Configuration configuration, Transaction transaction) {
@@ -92,7 +115,10 @@ public abstract class BaseExecutor implements Executor {
     return transaction;
   }
 
-  //关闭事务，并根据参数的值，判断是否回滚。
+  /**
+   * @param forceRollback  是否强制回滚
+   *  关闭执行器，并对属性进行 "格式化"
+   * */
   @Override
   public void close(boolean forceRollback) {
     try {
@@ -120,14 +146,18 @@ public abstract class BaseExecutor implements Executor {
     return closed;
   }
 
-  //SqlSession.update/insert/delete会调用此方法,先清除一级缓存，在执行更新方法，如何更新，子类实现。模板方法模式
+    /**
+     * 执行 update | delete | insert 语句
+     * */
   @Override
   public int update(MappedStatement ms, Object parameter) throws SQLException {
     ErrorContext.instance().resource(ms.getResource()).activity("executing an update").object(ms.getId());
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
+    //1. 清除本地缓存
     clearLocalCache();
+    //2. 模板方法模式，交给子类实现
     return doUpdate(ms, parameter);
   }
 
@@ -136,7 +166,9 @@ public abstract class BaseExecutor implements Executor {
     return flushStatements(false);
   }
 
-  //刷新语句，Batch用
+  /**
+   *  刷新（执行）被添加到批量执行的sql语句
+   * */
   public List<BatchResult> flushStatements(boolean isRollBack) throws SQLException {
     if (closed) {
       throw new ExecutorException("Executor was closed.");
@@ -144,95 +176,105 @@ public abstract class BaseExecutor implements Executor {
     return doFlushStatements(isRollBack);
   }
 
-  //SqlSession.selectList会调用此方法
+   /**
+    *  执行 select 语句
+    * */
   @Override
   public <E> List<E> query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler) throws SQLException {
-    //得到绑定sql
+    //1. 得到绑定sql对象
     BoundSql boundSql = ms.getBoundSql(parameter);
-    //创建缓存Key
+    //2. 根据传入的参数构建 缓存key对象
     CacheKey key = createCacheKey(ms, parameter, rowBounds, boundSql);
-    //查询
+    //3. 执行查询操作
     return query(ms, parameter, rowBounds, resultHandler, key, boundSql);
  }
 
+ /**
+  * @param ms 此次执行的sql语句节点构建的 MappedStatment对象
+  * @param parameter 此次执行的sql语句所使用的参数对象
+  * @param rowBounds 分页对象
+  * @param resultHandler 结果处理对象
+  * @param key 根据此次执行的sql语句、参数等构建的缓存key
+  * @param boundSql 此次执行所使用的绑定sql对象
+  * */
   @SuppressWarnings("unchecked")
   @Override
   public <E> List<E> query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException {
     ErrorContext.instance().resource(ms.getResource()).activity("executing a query").object(ms.getId());
-    //如果已经关闭，报错
+    //1. 如果当前的执行器已经关闭，报错
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
-    //当第一次查询，且mappedStatment为必须刷新时，清除一级缓存，防止递归调用清除一级缓存
+    //2. 如果当前的查询堆栈为0，且指定 flushCache为true时，清空一级缓存
     if (queryStack == 0 && ms.isFlushCacheRequired()) {
       clearLocalCache();
     }
     List<E> list;
     try {
-      //加一,这样递归调用到上面的时候就不会再清局部缓存了，比如内嵌查询
+
+      //3. 查询堆栈深度加一， 此时递归调用该方法时，就不会清除局部缓存了（例如内嵌查询）
       queryStack++;
-      //先根据cachekey从localCache去查
+      //4. 先从本地缓存中获取
       list = resultHandler == null ? (List<E>) localCache.getObject(key) : null;
+      //5. 如果获取到了，则处理输出参数
       if (list != null) {
-        //若查到localCache缓存，处理localOutputParameterCache
         handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);
+      //6. 否则，从数据中查询
       } else {
-        //从数据库查
         list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);
       }
     } finally {
-      //清空堆栈
+      //7. 此次执行完成，查询堆栈深度减一
       queryStack--;
     }
+    //8. 如果查询堆栈的深度变为0
     if (queryStack == 0) {
-      //延迟加载队列中所有元素
+      //加载延迟队列中的所有元素，然后清空
       for (DeferredLoad deferredLoad : deferredLoads) {
         deferredLoad.load();
       }
       // issue #601
-      //清空延迟加载队列
       deferredLoads.clear();
+      // 如果本地缓存为 statement级别清空本地缓存
       if (configuration.getLocalCacheScope() == LocalCacheScope.STATEMENT) {
         // issue #482
-    	//如果是本地缓存范围是STATEMENT，清本地缓存
         clearLocalCache();
       }
     }
     return list;
   }
 
-  //延迟加载，DefaultResultSetHandler.getNestedQueryMappingValue调用.属于嵌套查询，比较高级.
+  /**
+   *  延迟加载
+   * */
   @Override
   public void deferLoad(MappedStatement ms, MetaObject resultObject, String property, CacheKey key, Class<?> targetType) {
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
     DeferredLoad deferredLoad = new DeferredLoad(resultObject, property, key, localCache, configuration, targetType);
-    //如果能加载，则立刻加载，否则加入到延迟加载队列中
     if (deferredLoad.canLoad()) {
       deferredLoad.load();
     } else {
-      //这里怎么又new了一个新的？？？
       deferredLoads.add(new DeferredLoad(resultObject, property, key, localCache, configuration, targetType));
     }
   }
 
-  //根据mappedStatment的id,分页的偏移量和长度，sql语句，然后各个参数的值创建缓存Key
+  /**
+   *  根据传入的参数构建缓存key对象(保证唯一)
+   * */
   @Override
   public CacheKey createCacheKey(MappedStatement ms, Object parameterObject, RowBounds rowBounds, BoundSql boundSql) {
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
     CacheKey cacheKey = new CacheKey();
-    //MyBatis 对于其 Key 的生成采取规则为：[mappedStementId + offset + limit + SQL + queryParams + environment]生成一个哈希码
     cacheKey.update(ms.getId());
     cacheKey.update(Integer.valueOf(rowBounds.getOffset()));
     cacheKey.update(Integer.valueOf(rowBounds.getLimit()));
     cacheKey.update(boundSql.getSql());
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
     TypeHandlerRegistry typeHandlerRegistry = ms.getConfiguration().getTypeHandlerRegistry();
-    // mimic DefaultParameterHandler logic
-    //模仿DefaultParameterHandler的逻辑,不再重复，请参考DefaultParameterHandler
     for (int i = 0; i < parameterMappings.size(); i++) {
       ParameterMapping parameterMapping = parameterMappings.get(i);
       if (parameterMapping.getMode() != ParameterMode.OUT) {
@@ -275,12 +317,16 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
-  //回滚
+ /**
+  * @param required 是否回滚事务
+  * */
   @Override
   public void rollback(boolean required) throws SQLException {
     if (!closed) {
       try {
+        //1. 清空本地缓存
         clearLocalCache();
+        //2. 刷新（执行）被添加到批量处理的sql语句
         flushStatements(true);
       } finally {
         if (required) {
@@ -290,7 +336,9 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
-  //清空本地缓存和本地输出参数缓存
+  /**
+   *  清空本地缓存,包括一级缓存和输出参数缓存
+   * */
   @Override
   public void clearLocalCache() {
     if (!closed) {
@@ -305,7 +353,6 @@ public abstract class BaseExecutor implements Executor {
   protected abstract List<BatchResult> doFlushStatements(boolean isRollback)
       throws SQLException;
 
-  //query-->queryFromDatabase-->doQuery
   protected abstract <E> List<E> doQuery(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql)
       throws SQLException;
 
@@ -318,14 +365,18 @@ public abstract class BaseExecutor implements Executor {
       }
     }
   }
-  //涉及处理本地缓存存储过程参数，暂时不看
+
+  /**
+   * TODO Lesleey 处理 函数 | 存储过程调用的输出参数
+   * */
   private void handleLocallyCachedOutputParameters(MappedStatement ms, CacheKey key, Object parameter, BoundSql boundSql) {
-    //处理存储过程的OUT参数
     if (ms.getStatementType() == StatementType.CALLABLE) {
+      //1. 通过缓存 key 获取到的输出参数
       final Object cachedParameter = localOutputParameterCache.getObject(key);
       if (cachedParameter != null && parameter != null) {
         final MetaObject metaCachedParameter = configuration.newMetaObject(cachedParameter);
         final MetaObject metaParameter = configuration.newMetaObject(parameter);
+        //2. 遍历所有的参数映射，如果参数模式不是输入参数时，根据参数映射将缓存的参数设置到新参数对应的属性中
         for (ParameterMapping parameterMapping : boundSql.getParameterMappings()) {
           if (parameterMapping.getMode() != ParameterMode.IN) {
             final String parameterName = parameterMapping.getProperty();
@@ -337,30 +388,34 @@ public abstract class BaseExecutor implements Executor {
     }
   }
 
-  //从数据库查,查询出来结果，放到本地缓存并返回
+  /**
+   *  从数据库中查询记录
+   * */
   private <E> List<E> queryFromDatabase(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException {
     List<E> list;
-    //先向缓存中放入占位符？？？
+    //1. 先向缓存中加入占位符，表示当前的查询正在执行
     localCache.putObject(key, EXECUTION_PLACEHOLDER);
     try {
       list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);
     } finally {
-      //最后删除占位符
       localCache.removeObject(key);
     }
-    //加入缓存
+    //2. 将查询结果加入缓存
     localCache.putObject(key, list);
-    //如果是存储过程，OUT参数也加入缓存
+    //3. 如果当前为存储过程的执行，将参数加入到 localOutputParameterCache
     if (ms.getStatementType() == StatementType.CALLABLE) {
       localOutputParameterCache.putObject(key, parameter);
     }
     return list;
   }
-  //获得connection对象
+
+  /**
+   * @param statementLog 用于打印日志的对象
+   *    使用动态代理的方式为数据库连接的操作添加日志
+   * */
   protected Connection getConnection(Log statementLog) throws SQLException {
     Connection connection = transaction.getConnection();
     if (statementLog.isDebugEnabled()) {
-      //如果需要打印Connection的日志，返回一个ConnectionLogger(代理模式, AOP思想)
       return ConnectionLogger.newInstance(connection, statementLog, queryStack);
     } else {
       return connection;
@@ -372,21 +427,21 @@ public abstract class BaseExecutor implements Executor {
     this.wrapper = wrapper;
   }
   
-  //延迟加载
+
   private static class DeferredLoad {
-    //源数据对象
+    //结果对象的元数据
     private final MetaObject resultObject;
-    //延迟加载对应的对象的属性
+    //结果对象对应的延迟加载的属性
     private final String property;
-    //该属性是什么类型 javaType
+    //该属性的 java 类型
     private final Class<?> targetType;
-    //在缓存中唯一确定缓存项的key
+    //获取延迟加载属性对应的内嵌查询的缓存key
     private final CacheKey key;
     //缓存
     private final PerpetualCache localCache;
     //对象工厂
     private final ObjectFactory objectFactory;
-    //结果抽取器，将结果按照targetType类型,包装list,然后返回。
+    //结果抽取器
     private final ResultExtractor resultExtractor;
 
     // issue #781
@@ -405,17 +460,20 @@ public abstract class BaseExecutor implements Executor {
       this.targetType = targetType;
     }
 
+    /**
+     *  如果在缓存中可以找到，且不为占位符，则表示可以加载（获取缓存项对应的值）
+     * */
     public boolean canLoad() {
-      //缓存中找到，且不为占位符，代表可以加载
       return localCache.getObject(key) != null && localCache.getObject(key) != EXECUTION_PLACEHOLDER;
     }
 
-	//加载
+    /**
+     *  获取缓存项对应的值（内嵌查询对应的值），并用结果抽取器获取延迟加载属性的最终结果
+     * */
     public void load() {
       @SuppressWarnings( "unchecked" )
       // we suppose we get back a List
       List<Object> list = (List<Object>) localCache.getObject(key);
-      //调用ResultExtractor.extractObjectFromList
       Object value = resultExtractor.extractObjectFromList(list, targetType);
       resultObject.setValue(property, value);
     }

@@ -30,15 +30,15 @@ import org.apache.ibatis.session.Configuration;
  * @author Clinton Begin
  */
 /**
- * 静态SQL源码
+ * 静态SQL源
  * 
  */
 public class StaticSqlSource implements SqlSource {
-  //预编译之后的sql
+  //预编译的sql语句
   private String sql;
-  //所有的参数映射，比如#{id} 关于该参数的所有信息。
+  //关于sql语句的所有参数映射信息，比如#{id}, #{name}等
   private List<ParameterMapping> parameterMappings;
-  //当前的configuration
+  //全局的configuration
   private Configuration configuration;
 
   public StaticSqlSource(Configuration configuration, String sql) {

@@ -126,7 +126,8 @@ public class XMLMapperBuilder extends BaseBuilder {
       bindMapperForNamespace();
     }
 
-    //之前由于一些顺序的原因导致一些cacheRef,resultMap, statment中的resultMap引用抛出未完成异常，在这里继续进行解析。
+    //5. 由于mapper文件解析顺序的原因， 可能会导致导致resultMap、cacheRef、 statement中的一些引用所在的mapper文件还未解析，这种情况会抛出InCompleted异常，此时会将这些抛出该异常的解析器
+    //记录下来， 在每个mapper文件解析完成都会重新尝试调用这些解析器的解析方法
     parsePendingResultMaps();
     parsePendingChacheRefs();
     parsePendingStatements();
@@ -142,7 +143,7 @@ public class XMLMapperBuilder extends BaseBuilder {
    * */
   private void configurationElement(XNode context) {
     try {
-      //1.配置namespace
+      //1.配置namespace(一般为对应 dao 接口的全限定符)
       String namespace = context.getStringAttribute("namespace");
       if (namespace.equals("")) {
         throw new BuilderException("Mapper's namespace cannot be empty");
@@ -150,41 +151,47 @@ public class XMLMapperBuilder extends BaseBuilder {
       builderAssistant.setCurrentNamespace(namespace);
       //2.解析cache-ref节点
       cacheRefElement(context.evalNode("cache-ref"));
-      //3.配置cache
+      //3.解析cache节点
       cacheElement(context.evalNode("cache"));
-      //4.配置parameterMap(已经废弃,老式风格的参数映射)，不看了，不常用
+      //4.配置parameterMap(已经废弃,老式风格的参数映射)，已废弃
       parameterMapElement(context.evalNodes("/mapper/parameterMap"));
       //5.配置resultMap(高级功能)
       resultMapElements(context.evalNodes("/mapper/resultMap"));
-      //6.配置sql(定义可重用的 SQL 代码段)
+      //6.解析sql节点(定义可重用的 SQL 代码段)
       sqlElement(context.evalNodes("/mapper/sql"));
-      //7.配置select|insert|update|delete TODO
+      //7.配置select|insert|update|delete
       buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
     } catch (Exception e) {
       throw new BuilderException("Error parsing Mapper XML. Cause: " + e, e);
     }
   }
 
-  //7.配置select|insert|update|delete
+  /**
+   *  解析 select | insert | update | delete 节点
+   *   解析符合当前数据库环境的（指定的databaseId和当前数据库环境一致）节点和未指定databaseId 的默认所有数据库都可以使用的节点
+   *   如果指定了dabaseId 且符合当前数据库环境的节点的id、和未指定databaseId 的节点的 id 相同，则优先使用前者
+   * */
   private void buildStatementFromContext(List<XNode> list) {
-    //调用7.1构建语句
+
     if (configuration.getDatabaseId() != null) {
       buildStatementFromContext(list, configuration.getDatabaseId());
     }
     buildStatementFromContext(list, null);
   }
 
-  //7.1构建语句
+  /**
+   * @param list 所有的sql语句节点
+   * @param requiredDatabaseId  需要匹配的databaseId
+   * */
   private void buildStatementFromContext(List<XNode> list, String requiredDatabaseId) {
+    //1. 遍历所有的 sql 语句节点
     for (XNode context : list) {
-      //构建所有语句,一个mapper下可以有很多select
-      //语句比较复杂，核心都在这里面，所以调用XMLStatementBuilder来创建MappedStatment
+      //1.1 构建 XmlstatementParser 解析类进行解析
       final XMLStatementBuilder statementParser = new XMLStatementBuilder(configuration, builderAssistant, context, requiredDatabaseId);
       try {
-          //核心XMLStatementBuilder.parseStatementNode
         statementParser.parseStatementNode();
       } catch (IncompleteElementException e) {
-          //如果出现SQL语句不完整，把它记下来，塞到configuration去
+        //1.2 如果解析过程中，抛出 IncompleteElementException, 说明需要的某些属性可能还未解析，则将当前 StatmentParser 保存起来。
         configuration.addIncompleteStatement(statementParser);
       }
     }
@@ -235,17 +242,19 @@ public class XMLMapperBuilder extends BaseBuilder {
     }
   }
 
-  //2.配置cache-ref,在这样的 情况下你可以使用 cache-ref 元素来引用另外一个mapper缓存。
-//<cache-ref namespace="com.someone.application.data.SomeMapper"/>
+  /**
+   *  配置cache-ref,通过该配置可以使得当前 mapper 和指定的 mapper 共享相同的缓存配置和实例
+   * */
   private void cacheRefElement(XNode context) {
     if (context != null) {
-      //给当前configuration对象cacheRefMap中，添加当前namespace,和要引用的namespace
+      //1. 在全局配置类中记录引用关系
       configuration.addCacheRef(builderAssistant.getCurrentNamespace(), context.getStringAttribute("namespace"));
-      //通过CacheRefResolver解析器获得当前引用的namespace所使用的缓存。
+      //2. 通过CacheRefResolver解析器构建当前 mapper 使用的缓存
       CacheRefResolver cacheRefResolver = new CacheRefResolver(builderAssistant, context.getStringAttribute("namespace"));
       try {
-        //主要是通过它，判断当前引用的namespace是否已经解析过，或者有没有对应的缓存，如果没有，则会抛出异常，如果有，则把他赋值到builderAssistant的currentCache变量上。
+        //3. 解析的主要流程，获取并使用指定命名空间的缓存对象
         cacheRefResolver.resolveCacheRef();
+      //4. 如果指定的mapper文件还没有解析，则会抛出 IncompleteElementException 异常，此时会记录当前的缓存引用解析器，在mapper全部解析完成之后，会重新使用该解析器进行解析
       } catch (IncompleteElementException e) {
         configuration.addIncompleteCacheRef(cacheRefResolver);
       }
@@ -274,8 +283,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     }
   }
 
-  //4.配置parameterMap
-  //已经被废弃了!老式风格的参数映射。可以忽略
+
   private void parameterMapElement(List<XNode> list) throws Exception {
     for (XNode parameterMapNode : list) {
       String id = parameterMapNode.getStringAttribute("id");
@@ -303,71 +311,68 @@ public class XMLMapperBuilder extends BaseBuilder {
     }
   }
 
-  //5.配置resultMap,高级功能
+  /**
+   *  解析所有的 resultMap 标签
+   * */
   private void resultMapElements(List<XNode> list) throws Exception {
-      //基本上就是循环把resultMap加入到Configuration里去,保持2份，一份缩略，一分全名
     for (XNode resultMapNode : list) {
       try {
-          //循环调resultMapElement
         resultMapElement(resultMapNode);
       } catch (IncompleteElementException e) {
       }
     }
   }
 
-  //5.1 配置resultMap
+  /**
+   *  解析 resultMap标签
+   * */
   private ResultMap resultMapElement(XNode resultMapNode) throws Exception {
     return resultMapElement(resultMapNode, Collections.<ResultMapping> emptyList());
   }
 
-  //5.1 配置resultMap
+  /**
+   *  解析 <resultMap/>、<association/>、<collection/>、<case/> 节点
+   * @param resultMapNode  当前的resultMap节点， 可以为 <resultMap/>、<association/>、<collection/>、<case/>
+   * @param additionalResultMappings  附加的 resultMapping（当 resultMapNode 节点不是<resultMap/> 节点时，当前resultMapNode外部，所在的<resultMap内部）
+   *
+   * */
   private ResultMap resultMapElement(XNode resultMapNode, List<ResultMapping> additionalResultMappings) throws Exception {
-    //错误上下文
-/*  <resultMap type="role" id="roleMap" extends="baseResultMap">
-        <id column="id" property="id" javaType="long" jdbcType="BIGINT" />
-        <result column="role_name" property="roleName" javaType="string" jdbcType="VARCHAR" />
 
-        <association property="permission" javaType="demo.entity.Permission"  resultMap="permission">
-
-        </association>
-    </resultMap>*/
     ErrorContext.instance().activity("processing " + resultMapNode.getValueBasedIdentifier());
-    //如果没有Id说明当前此方法的resultMap节点是一个association/collection/case，则封装一个id作为该ResultMap的唯一标识。
+    //1. 获取当前resultMap节点的唯一标示, 如果为association/collection/case节点， 则构建相对于根节点的路径作为唯一标示
     String id = resultMapNode.getStringAttribute("id",
         resultMapNode.getValueBasedIdentifier());
-    //获取该resultMap所表示的类,从当前resultMapNode节点取值，type|ofTpe|resultType|javaType
+    //2 获取该resultMap所表示的java类型,按照 type|ofTpe|resultType|javaType 顺序获取对应属性的值(别名或者全限定符)
     String type = resultMapNode.getStringAttribute("type",
         resultMapNode.getStringAttribute("ofType",
             resultMapNode.getStringAttribute("resultType",
                 resultMapNode.getStringAttribute("javaType"))));
-    //取当前节点的"extends"属性的值，extends如何使用看官网。
+    //3. 取当前节点的"extends"属性的值，extends如何使用看官网。
     String extend = resultMapNode.getStringAttribute("extends");
+    //4. 获取当前节点是否配置自动映射
     Boolean autoMapping = resultMapNode.getBooleanAttribute("autoMapping");
     Class<?> typeClass = resolveClass(type);
     Discriminator discriminator = null;
+    //5. 解析当前节点下的所有子节点，并将每个子节点都构建成 ResultMapping 实例，并添加到该集合中
     List<ResultMapping> resultMappings = new ArrayList<ResultMapping>();
     resultMappings.addAll(additionalResultMappings);
-    //获取该resultMap | assocation | collection等下的所有子节点
     List<XNode> resultChildren = resultMapNode.getChildren();
-    //遍历所有子节点
     for (XNode resultChild : resultChildren) {
+      //5.1 处理 <constructor/>节点
       if ("constructor".equals(resultChild.getName())) {
-        //解析result map的constructor
         processConstructorElement(resultChild, typeClass, resultMappings);
+      //5.2 处理 <discriminator />节点
       } else if ("discriminator".equals(resultChild.getName())) {
-        //解析result map的discriminator
         discriminator = processDiscriminatorElement(resultChild, typeClass, resultMappings);
+      //5.3  处理简单的节点 <id/> 和 <result/>
       } else {
-        //如果该子节点是id节点，则给flags集合加上一个id标记。
         List<ResultFlag> flags = new ArrayList<ResultFlag>();
         if ("id".equals(resultChild.getName())) {
           flags.add(ResultFlag.ID);
         }
-        //buildResultMappingFromContext()方法,通过这个子节点构建ResultMapping
         resultMappings.add(buildResultMappingFromContext(resultChild, typeClass, flags));
       }
     }
-    //最后再调ResultMapResolver得到ResultMap
     ResultMapResolver resultMapResolver = new ResultMapResolver(builderAssistant, id, typeClass, extend, discriminator, resultMappings, autoMapping);
     try {
       return resultMapResolver.resolve();
@@ -377,29 +382,33 @@ public class XMLMapperBuilder extends BaseBuilder {
     }
   }
 
-//解析result map的constructor
-//<constructor>
-//  <idArg column="blog_id" javaType="int"/>
-//</constructor>
+  /**
+   * @param resultChild  正在构建的ResultMap节点的子节点 <constructor/>
+   * @param resultType 正在构建的ResultMap的java类型
+   * @param resultMappings  附加的 resultMapping（正在构建的ResultMap节点内部，当前resultChild节点外部解析完成的 resultMapping）
+   * */
   private void processConstructorElement(XNode resultChild, Class<?> resultType, List<ResultMapping> resultMappings) throws Exception {
     List<XNode> argChildren = resultChild.getChildren();
+    //1. 遍历所有的子节点
     for (XNode argChild : argChildren) {
       List<ResultFlag> flags = new ArrayList<ResultFlag>();
-      //结果标志加上ID和CONSTRUCTOR
+      //1.1 添加标志，标记当前 ResultMapping 用于构造对象
       flags.add(ResultFlag.CONSTRUCTOR);
       if ("idArg".equals(argChild.getName())) {
         flags.add(ResultFlag.ID);
       }
+      //1.2 将构建出来的对象添加到 ResultMapping 集合中
       resultMappings.add(buildResultMappingFromContext(argChild, resultType, flags));
     }
   }
 
-//解析result map的discriminator
-//<discriminator javaType="int" column="draft">
-//  <case value="1" resultType="DraftPost"/>
-//</discriminator>
+  /**
+   *  构建Discriminator 鉴别器： 根据结果值决定使用那个ResultMap,类似于java里的 Switch语句
+   * */
   private Discriminator processDiscriminatorElement(XNode context, Class<?> resultType, List<ResultMapping> resultMappings) throws Exception {
+    //1. 获取比较值的列
     String column = context.getStringAttribute("column");
+    //2. 获取该列的javaType、jdbcType和对应的类型处理器。
     String javaType = context.getStringAttribute("javaType");
     String jdbcType = context.getStringAttribute("jdbcType");
     String typeHandler = context.getStringAttribute("typeHandler");
@@ -407,39 +416,63 @@ public class XMLMapperBuilder extends BaseBuilder {
     @SuppressWarnings("unchecked")
     Class<? extends TypeHandler<?>> typeHandlerClass = (Class<? extends TypeHandler<?>>) resolveClass(typeHandler);
     JdbcType jdbcTypeEnum = resolveJdbcType(jdbcType);
+    //3. key: 需要匹配的值, value： 对应的 ResultMap的全局配置类的唯一标识符
     Map<String, String> discriminatorMap = new HashMap<String, String>();
+    //4. 遍历该 鉴别器下的所有子节点
     for (XNode caseChild : context.getChildren()) {
+      //4.1 获取需要匹配的值
       String value = caseChild.getStringAttribute("value");
+      //4.2 处理内嵌的 resultMap(case 节点)
       String resultMap = caseChild.getStringAttribute("resultMap", processNestedResultMappings(caseChild, resultMappings));
       discriminatorMap.put(value, resultMap);
     }
+    //5. 通过建造者模式构建鉴别器
     return builderAssistant.buildDiscriminator(resultType, column, javaTypeClass, jdbcTypeEnum, typeHandlerClass, discriminatorMap);
   }
 
-  //6 配置sql(定义可重用的 SQL 代码段)
+  /**
+   *  配置 sql 节点，定义可重用的 sql 代码片段
+   *
+   * */
   private void sqlElement(List<XNode> list) throws Exception {
+
     if (configuration.getDatabaseId() != null) {
       sqlElement(list, configuration.getDatabaseId());
     }
     sqlElement(list, null);
   }
 
+  /**
+   * @param list 当前mapper文件中，所有的sql节点
+   * @param requiredDatabaseId 需要匹配的 databaseid
+   *       将所有 sql 节点匹配当前数据库环境的 sql 片段保存起来
+   *       1. 如果sql 节点中没有指定 databaseId 则表示任何数据库环境都可以使用
+   *       2. 如果 sql 节点中指定了 databaseId， 且和当前数据库环境匹配，则表示可以使用，此时如果 sql 节点的 id 存在与 （1） 中相同，则优先级高于 （1）
+   * */
   private void sqlElement(List<XNode> list, String requiredDatabaseId) throws Exception {
+    // 遍历所有的 sql 节点
     for (XNode context : list) {
-      //获取当前sql节点的dataBaseId属性的值
+      //1. 获取当前sql节点的dataBaseId属性的值
       String databaseId = context.getStringAttribute("databaseId");
-      //获取当前sql节点的id的值
+      //2. 获取当前sql节点的id的值
       String id = context.getStringAttribute("id");
-      //给当前sql片段的id添加currentNamespace前缀。
+      //3. 给当前sql片段的id添加currentNamespace前缀。
       id = builderAssistant.applyCurrentNamespace(id, false);
+      //4. 如果当前 sql 片段匹配当前环境，则将其添加到 sqlFragments 属性中
       if (databaseIdMatchesCurrent(id, databaseId, requiredDatabaseId)) {
-        //将sql片段的节点放入configuration对象的sqlFragments中
         sqlFragments.put(id, context);
       }
     }
   }
 
+  /**
+   * @param id 当前 sql 指定的唯一标识符节点
+   * @param databaseId 当前 sql 节点指定的 databaseId
+   * @param requiredDatabaseId 全局配置类中指定的 databaseId
+   *     判断当前的 sql 片段是否匹配当前数据库环境
+   * */
   private boolean databaseIdMatchesCurrent(String id, String databaseId, String requiredDatabaseId) {
+
     if (requiredDatabaseId != null) {
       if (!requiredDatabaseId.equals(databaseId)) {
         return false;
@@ -450,7 +483,6 @@ public class XMLMapperBuilder extends BaseBuilder {
       }
       if (this.sqlFragments.containsKey(id)) {
         XNode context = this.sqlFragments.get(id);
-        //当前sql片段的databaseId为null，只有当前sql片段的id在configuraion对象的sqlFragments中存在，且对应的context的dataBaseId为null时会被覆盖。
         if (context.getStringAttribute("databaseId") != null) {
           return false;
         }
@@ -459,18 +491,20 @@ public class XMLMapperBuilder extends BaseBuilder {
     return true;
   }
 
-  //5.1.1 构建resultMapping
+  /**
+   *   根据简单节点构建 ResultMapping
+   * @param context  <constructor/>节点的<idArg/> 和 <arg/> 子节点、<resultMap/>节点内部的 <id/> 节点和 <result/>节点
+   * @param resultType 当前节点所在 </resultMap/> 节点的对应的 java类型
+   * @param flags 结果标记，标记当前是否为 <id/> 或者 <idArg/>
+   * */
   private ResultMapping buildResultMappingFromContext(XNode context, Class<?> resultType, List<ResultFlag> flags) throws Exception {
-	//<id property="id" column="author_id"/>
-	//<result property="username" column="author_username"/>
-    //只有当前子节点名为id时，flags才会有值R为esultFlag.ID
-    //下方就是获取resultMap子节点的各个属性
+	//1. 获取该节点内部的属性
     String property = context.getStringAttribute("property");
     String column = context.getStringAttribute("column");
     String javaType = context.getStringAttribute("javaType");
     String jdbcType = context.getStringAttribute("jdbcType");
     String nestedSelect = context.getStringAttribute("select");
-    //处理嵌套的result map，如果节点名为association/collection/case时，则会先调用 resultMapElement(context, resultMappings);把当前节点构建成ResultMap，然后注册到configuraion中，然后把id返回。
+    //2. 处理内嵌的 <resultMap/> 节点
     String nestedResultMap = context.getStringAttribute("resultMap",
         processNestedResultMappings(context, Collections.<ResultMapping> emptyList()));
     String notNullColumn = context.getStringAttribute("notNullColumn");
@@ -483,7 +517,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     @SuppressWarnings("unchecked")
     Class<? extends TypeHandler<?>> typeHandlerClass = (Class<? extends TypeHandler<?>>) resolveClass(typeHandler);
     JdbcType jdbcTypeEnum = resolveJdbcType(jdbcType);
-    //又去调builderAssistant.buildResultMapping，拿到这些属性构建ResultMapping
+    //3. 通过构建助手构建 ResultMapping 对象
     return builderAssistant.buildResultMapping(resultType, property, column, javaTypeClass, jdbcTypeEnum, nestedSelect, nestedResultMap, notNullColumn, columnPrefix, typeHandlerClass, flags, resulSet, foreignColumn, lazy);
   }
   
@@ -494,10 +528,6 @@ public class XMLMapperBuilder extends BaseBuilder {
         || "collection".equals(context.getName())
         || "case".equals(context.getName())) {
     	
-//    	<resultMap id="blogResult" type="Blog">
-//    	  <association property="author" column="author_id" javaType="Author" select="selectAuthor"/>
-//    	</resultMap>
-//如果不是嵌套查询
       if (context.getStringAttribute("select") == null) {
     	//则递归调用5.1 resultMapElement
         ResultMap resultMap = resultMapElement(context, resultMappings);

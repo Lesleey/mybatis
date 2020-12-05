@@ -27,12 +27,19 @@ import org.apache.ibatis.session.SqlSession;
  * @author Lasse Voss
  */
 /**
- * 映射器代理工厂： 通过该类构造 dao接口的代理类，为 dao接口中的方法提供实际的功能（执行配置文件中或者注解中指定的sql语句）
+ * 映射器代理工厂： 通过dao接口对应的类对象构造对应的代理类，为 dao接口中的方法提供实际的功能（执行配置文件中或者注解中指定的sql语句）
  */
 public class MapperProxyFactory<T> {
-  //当前代理工厂代理的dao对象的类对象
+
+  /**
+   *  dao接口对应的类对象
+   * */
   private final Class<T> mapperInterface;
-  //存储dao内的方法，和其对应的代理方法
+
+  /**
+   *  key: dao接口内部的方法对象
+   *  value：动态方法对象，增加了实际的功能
+   * */
   private Map<Method, MapperMethod> methodCache = new ConcurrentHashMap<Method, MapperMethod>();
 
   public MapperProxyFactory(Class<T> mapperInterface) {
@@ -47,13 +54,17 @@ public class MapperProxyFactory<T> {
     return methodCache;
   }
 
+  /**
+   *  通过jdk构建dao对应的动态代理对象
+   * */
   @SuppressWarnings("unchecked")
   protected T newInstance(MapperProxy<T> mapperProxy) {
-    //用JDK自带的动态代理生成映射器
     return (T) Proxy.newProxyInstance(mapperInterface.getClassLoader(), new Class[] { mapperInterface }, mapperProxy);
   }
 
+
   public T newInstance(SqlSession sqlSession) {
+    //1. 获取增强器
     final MapperProxy<T> mapperProxy = new MapperProxy<T>(sqlSession, mapperInterface, methodCache);
     return newInstance(mapperProxy);
   }

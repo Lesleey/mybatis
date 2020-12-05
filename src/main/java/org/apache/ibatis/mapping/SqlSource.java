@@ -22,7 +22,7 @@ package org.apache.ibatis.mapping;
  * @author Clinton Begin
  */
 /**
- * SQL源码
+ * SQL源
  * 
  */
 public interface SqlSource {

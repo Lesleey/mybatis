@@ -31,7 +31,14 @@ import org.apache.ibatis.session.Configuration;
  */
 public class DynamicSqlSource implements SqlSource {
 
+  /**
+   * mybatis的全局配置类
+   * */
   private Configuration configuration;
+
+  /**
+   *  该sql语句节点对应的 sqlNode对象
+   * */
   private SqlNode rootSqlNode;
 
   public DynamicSqlSource(Configuration configuration, SqlNode rootSqlNode) {
@@ -39,19 +46,21 @@ public class DynamicSqlSource implements SqlSource {
     this.rootSqlNode = rootSqlNode;
   }
 
-  //得到绑定的SQL
+
+  /**
+   *  通过参数对象获取对应的绑定sql对象
+   * */
   @Override
   public BoundSql getBoundSql(Object parameterObject) {
-    //生成一个动态上下文
+    //1. 通过参数对象构建动态上下文
     DynamicContext context = new DynamicContext(configuration, parameterObject);
-	//这里SqlNode.apply只是将${}这种参数替换掉，并没有替换#{}这种参数
+    //2. 根据传入的所有参数对象解析所有的动态sql语句 和 ${}占位符
     rootSqlNode.apply(context);
-	//调用SqlSourceBuilder
     SqlSourceBuilder sqlSourceParser = new SqlSourceBuilder(configuration);
     Class<?> parameterType = parameterObject == null ? Object.class : parameterObject.getClass();
-	//SqlSourceBuilder.parse,注意这里返回的是StaticSqlSource,解析完了就把那些参数都替换成?了，也就是最基本的JDBC的SQL写法
+    //3. 根据 sql源构建器解析 sql 获取静态的sql源
     SqlSource sqlSource = sqlSourceParser.parse(context.getSql(), parameterType, context.getBindings());
-	//看似是又去递归调用SqlSource.getBoundSql，其实因为是StaticSqlSource，所以没问题，不是递归调用
+    //4. 根据该静态sql源获取其绑定sql对象
     BoundSql boundSql = sqlSource.getBoundSql(parameterObject);
     for (Map.Entry<String, Object> entry : context.getBindings().entrySet()) {
       boundSql.setAdditionalParameter(entry.getKey(), entry.getValue());

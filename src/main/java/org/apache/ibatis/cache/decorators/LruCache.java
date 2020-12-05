@@ -32,9 +32,19 @@ import org.apache.ibatis.cache.Cache;
  */
 public class LruCache implements Cache {
 
+  /**
+   *  被装饰者
+   * */
   private final Cache delegate;
-  //额外用了一个map才做lru，但是委托的Cache里面其实也是一个map，这样等于用2倍的内存实现lru功能
+
+  /**
+   *  通过 LinkedHashMap 保存缓存 key
+   * */
   private Map<Object, Object> keyMap;
+
+  /**
+   *  最仅最少未使用的key，已被在缓存中移除
+   * */
   private Object eldestKey;
 
   public LruCache(Cache delegate) {
@@ -43,14 +53,14 @@ public class LruCache implements Cache {
   }
 
 
+
   public void setSize(final int size) {
+    //在设置大小时，通过覆盖 LinkedHashMap#removeEldestEntry 方法，该方法的返回值会告诉 LinedHashMap 是否需要删除最老的 key
+    //第三个参数表示按照插入还是访问进行排序，true表示按照访问顺序排序，在每次访问或者插入一个元素时，都会把元素放到链表末尾，这样
+    //最老的key的就会在链表头部
     keyMap = new LinkedHashMap<Object, Object>(size, .75F, true) {
       private static final long serialVersionUID = 4267176411845948333L;
 
-      //核心就是覆盖 LinkedHashMap.removeEldestEntry方法,
-      //返回true或false告诉 LinkedHashMap要不要删除此最老键值
-      //LinkedHashMap内部其实就是每次访问或者插入一个元素都会把元素放到链表末尾，
-      //这样不经常访问的键值肯定就在链表开头啦
       @Override
       protected boolean removeEldestEntry(Map.Entry<Object, Object> eldest) {
         boolean tooBig = size() > size;
@@ -64,17 +74,21 @@ public class LruCache implements Cache {
 
   }
 
+  /**
+   * 每次添加一个元素，都判断是否有缓存key被换出
+   * */
   @Override
   public void putObject(Object key, Object value) {
     delegate.putObject(key, value);
-    //增加新纪录后，判断是否要将最老元素移除
     cycleKeyList(key);
   }
 
+  /**
+   *  访问一个元素时，调用以下 keyMap的get方法，使得当前访问的元素移动到末尾
+   * */
   @Override
   public Object getObject(Object key) {
-      //get的时候调用一下LinkedHashMap.get，让经常访问的值移动到链表末尾
-    keyMap.get(key); //touch
+    keyMap.get(key);
     return delegate.getObject(key);
   }
 
@@ -94,9 +108,13 @@ public class LruCache implements Cache {
     return null;
   }
 
+  /**
+   *  判断是否已有key被换出
+   * */
   private void cycleKeyList(Object key) {
+    //1. 将新加的缓存key放到 keyMap 中
     keyMap.put(key, key);
-    //keyMap是linkedhashmap，最老的记录已经被移除了，然后这里我们还需要移除被委托的那个cache的记录
+    //2. 如果 eldestkey 不为空，说明已有缓存key被换出，则将该key和对应的缓存项从实际的缓存中移除，然后重新将 eldestkey置为null
     if (eldestKey != null) {
       delegate.removeObject(eldestKey);
       eldestKey = null;

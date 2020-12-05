@@ -34,18 +34,36 @@ import org.apache.ibatis.logging.Log;
  */
 public abstract class BaseJdbcLogger {
 
-  //set方法的集合
+  /**
+   *  为预编译的sql设置参数所使用的set方法名称的集合
+   * */
   protected static final Set<String> SET_METHODS = new HashSet<String>();
-  //执行方法的集合
+
+  /**
+   * Statement 语句执行方法名称的集合
+   * */
   protected static final Set<String> EXECUTE_METHODS = new HashSet<String>();
 
+  /**
+   *  key: parameterIndex(预编译位置的索引 ? 的位置)
+   *  value: 设置的值
+   * */
   private Map<Object, Object> columnMap = new HashMap<Object, Object>();
 
+  //预编译位置的索引 或者列名
   private List<Object> columnNames = new ArrayList<Object>();
+
+  //预编译参数对应的值
   private List<Object> columnValues = new ArrayList<Object>();
-  //语句日志
+
+  /**
+   * mybatis 集成的日志对象
+   * */
   protected Log statementLog;
-  //查询栈
+
+  /**
+   *  查询堆栈的深度
+   * */
   protected int queryStack;
 
   /*
@@ -99,7 +117,10 @@ public abstract class BaseJdbcLogger {
     return columnMap.get(key);
   }
 
-  //获得所有的参数值
+
+  /**
+   *  获取用于设置预编译参数的所有值
+   * */
   protected String getParameterValueString() {
     List<Object> typeList = new ArrayList<Object>(columnValues.size());
     for (Object value : columnValues) {
@@ -112,7 +133,7 @@ public abstract class BaseJdbcLogger {
     final String parameters = typeList.toString();
     return parameters.substring(1, parameters.length() - 1);
   }
-  //获得所有的数据列名值
+
   protected String getColumnString() {
     return columnNames.toString();
   }
@@ -123,8 +144,11 @@ public abstract class BaseJdbcLogger {
     columnValues.clear();
   }
 
+  /**
+   * @param original 去除所有的 制表符、空格、换行符，替换为空格
+   *
+   * */
   protected String removeBreakingWhitespace(String original) {
-    //java.lang的工具类，主要是字符中用来移除空格，制表符等等。
     StringTokenizer whitespaceStripper = new StringTokenizer(original);
     StringBuilder builder = new StringBuilder();
     while (whitespaceStripper.hasMoreTokens()) {
@@ -153,7 +177,11 @@ public abstract class BaseJdbcLogger {
       statementLog.trace(prefix(input) + text);
     }
   }
-  //根据输入或输出，来打印字符串类似于 ====>  |  <======
+
+  /**
+   *  根据输入、输出和查询深度，为日志字符串添加不同的前缀
+   *    类似于====>  |  <======
+   * */
   private String prefix(boolean isInput) {
     char[] buffer = new char[queryStack * 2 + 2];
     Arrays.fill(buffer, '=');

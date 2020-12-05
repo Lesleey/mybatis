@@ -38,11 +38,13 @@ import org.apache.ibatis.transaction.Transaction;
  * @author Clinton Begin
  */
 /**
- * 可重用的执行器,就是把sql语句对应的statment缓存起来。下次再次执行这条sql,从缓存中获取
+ * 可重用的执行器,就是把要执行的sql语句对应的statement缓存起来。下次再次执行这条sql,从缓存中获取 sql 对应的 Statement 对象然后设置参数执行， 无需构建新的 Statement
  */
 public class ReuseExecutor extends BaseExecutor {
 
-  //可重用的执行器内部用了一个map，用来缓存SQL语句对应的Statement
+  /**
+   *  key: 进行预编译的sql 语句， value: 对应的 Statement 对象
+   * */
   private final Map<String, Statement> statementMap = new HashMap<String, Statement>();
 
   public ReuseExecutor(Configuration configuration, Transaction transaction) {
@@ -52,10 +54,7 @@ public class ReuseExecutor extends BaseExecutor {
   @Override
   public int doUpdate(MappedStatement ms, Object parameter) throws SQLException {
     Configuration configuration = ms.getConfiguration();
-    //和SimpleExecutor一样，新建一个StatementHandler
-    //这里看到ResultHandler传入的是null
     StatementHandler handler = configuration.newStatementHandler(this, ms, parameter, RowBounds.DEFAULT, null, null);
-    //准备语句
     Statement stmt = prepareStatement(handler, ms.getStatementLog());
     return handler.update(stmt);
   }
@@ -68,6 +67,9 @@ public class ReuseExecutor extends BaseExecutor {
     return handler.<E>query(stmt, resultHandler);
   }
 
+  /**
+   *  如果执行器为复用执行器，则刷新语句为 关闭缓存中的所有 Statement 对象
+   * */
   @Override
   public List<BatchResult> doFlushStatements(boolean isRollback) throws SQLException {
     for (Statement stmt : statementMap.values()) {
@@ -79,22 +81,27 @@ public class ReuseExecutor extends BaseExecutor {
 
   private Statement prepareStatement(StatementHandler handler, Log statementLog) throws SQLException {
     Statement stmt;
-    //得到绑定的SQL语句
+    //1. 获取要执行的sql语句
     BoundSql boundSql = handler.getBoundSql();
     String sql = boundSql.getSql();
-    //如果缓存中已经有了，直接得到Statement
+    //2. 如果缓存中已经存在对应的 Statement 对象，则直接使用
     if (hasStatementFor(sql)) {
       stmt = getStatement(sql);
+    //3. 如果没有缓存，则开始构建 Statement 对象
     } else {
-      //如果缓存没有找到，则和SimpleExecutor处理完全一样，然后加入缓存
       Connection connection = getConnection(statementLog);
       stmt = handler.prepare(connection);
       putStatement(sql, stmt);
     }
+    //4. 设置参数
     handler.parameterize(stmt);
     return stmt;
   }
 
+  /**
+   * @param sql 要进行预编译的 sql 语句
+   *     根据 sql语句 对应的 Statement 是否被缓存
+   * */
   private boolean hasStatementFor(String sql) {
     try {
       return statementMap.keySet().contains(sql) && !statementMap.get(sql).getConnection().isClosed();

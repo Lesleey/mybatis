@@ -30,13 +30,19 @@ import org.apache.ibatis.session.ResultHandler;
  * @author Clinton Begin
  */
 /**
- * 默认Map结果处理器
+ * 默认Map结果处理器: 将 mapKey注解指定的值作为key，结果对象作为值value
  * 
  */
 public class DefaultMapResultHandler<K, V> implements ResultHandler {
 
-  //内部实现是存了一个Map
+  /**
+   *  保存当前 statement 语句的执行结果
+   * */
   private final Map<K, V> mappedResults;
+
+  /**
+   *  mapKey 注解的值： mappedResults 的Key将会根据该值作为属性从结果对象获取值作为 key
+   * */
   private final String mapKey;
   private final ObjectFactory objectFactory;
   private final ObjectWrapperFactory objectWrapperFactory;
@@ -51,17 +57,13 @@ public class DefaultMapResultHandler<K, V> implements ResultHandler {
 
   @Override
   public void handleResult(ResultContext context) {
-    // TODO is that assignment always true?
-    //得到一条记录
-    //这边黄色警告没法去掉了？因为返回Object型
+    //1. 结果对象（结果集一行记录对应的java对象）
     final V value = (V) context.getResultObject();
-    //MetaObject.forObject,包装一下记录
-    //MetaObject是用反射来包装各种类型
     final MetaObject mo = MetaObject.forObject(value, objectFactory, objectWrapperFactory);
-    // TODO is that assignment always true?
+    //2. 获取指定的字段值作为key
     final K key = (K) mo.getValue(mapKey);
+    //3. 将结果放到 mappedResults中
     mappedResults.put(key, value);
-    //这个类主要目的是把得到的List转为Map
   }
 
   public Map<K, V> getMappedResults() {

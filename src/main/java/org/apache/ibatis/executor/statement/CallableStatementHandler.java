@@ -46,17 +46,19 @@ public class CallableStatementHandler extends BaseStatementHandler {
     super(executor, mappedStatement, parameter, rowBounds, resultHandler, boundSql);
   }
 
+  /**
+   *  执行 delete | update | insert 语句
+   * */
   @Override
   public int update(Statement statement) throws SQLException {
-    //这个方法和PreparedStatementHandler代码基本一样,就多了最后的handleOutputParameters
-    //调用Statement.execute和Statement.getUpdateCount
+    //1. 调用函数、 执行主键生成器回调
     CallableStatement cs = (CallableStatement) statement;
     cs.execute();
     int rows = cs.getUpdateCount();
     Object parameterObject = boundSql.getParameterObject();
     KeyGenerator keyGenerator = mappedStatement.getKeyGenerator();
     keyGenerator.processAfter(executor, mappedStatement, cs, parameterObject);
-    //然后交给ResultSetHandler.handleOutputParameters
+    //2. 通过结果集处理输出函数
     resultSetHandler.handleOutputParameters(cs);
     return rows;
   }
@@ -69,16 +71,17 @@ public class CallableStatementHandler extends BaseStatementHandler {
 
   @Override
   public <E> List<E> query(Statement statement, ResultHandler resultHandler) throws SQLException {
+    //1. 执行sql查询，通过结果集封装返回结果
     CallableStatement cs = (CallableStatement) statement;
     cs.execute();
     List<E> resultList = resultSetHandler.<E>handleResultSets(cs);
+    //2. 通过结果集处理输出参数
     resultSetHandler.handleOutputParameters(cs);
     return resultList;
   }
 
   @Override
   protected Statement instantiateStatement(Connection connection) throws SQLException {
-    //调用Connection.prepareCall
     String sql = boundSql.getSql();
     if (mappedStatement.getResultSetType() != null) {
       return connection.prepareCall(sql, mappedStatement.getResultSetType().getValue(), ResultSet.CONCUR_READ_ONLY);
@@ -87,19 +90,22 @@ public class CallableStatementHandler extends BaseStatementHandler {
     }
   }
 
+  /**
+   *   给该 CallableStatement 对象设置参数
+   * */
   @Override
   public void parameterize(Statement statement) throws SQLException {
-    //注册OUT参数
     registerOutputParameters((CallableStatement) statement);
-    //调用ParameterHandler.setParameters
     parameterHandler.setParameters((CallableStatement) statement);
   }
 
+  /**
+   *  处理函数所有的输入输出参数 和输出参数， 为了获取函数的返回值，需要将参数注册为 sql 类型，
+   * */
   private void registerOutputParameters(CallableStatement cs) throws SQLException {
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
     for (int i = 0, n = parameterMappings.size(); i < n; i++) {
       ParameterMapping parameterMapping = parameterMappings.get(i);
-      //只处理OUT|INOUT
       if (parameterMapping.getMode() == ParameterMode.OUT || parameterMapping.getMode() == ParameterMode.INOUT) {
         if (null == parameterMapping.getJdbcType()) {
           throw new ExecutorException("The JDBC Type must be specified for output parameter.  Parameter: " + parameterMapping.getProperty());
@@ -107,7 +113,6 @@ public class CallableStatementHandler extends BaseStatementHandler {
           if (parameterMapping.getNumericScale() != null && (parameterMapping.getJdbcType() == JdbcType.NUMERIC || parameterMapping.getJdbcType() == JdbcType.DECIMAL)) {
             cs.registerOutParameter(i + 1, parameterMapping.getJdbcType().TYPE_CODE, parameterMapping.getNumericScale());
           } else {
-            //核心是调用CallableStatement.registerOutParameter
             if (parameterMapping.getJdbcTypeName() == null) {
               cs.registerOutParameter(i + 1, parameterMapping.getJdbcType().TYPE_CODE);
             } else {
@@ -120,3 +125,4 @@ public class CallableStatementHandler extends BaseStatementHandler {
   }
 
 }
+

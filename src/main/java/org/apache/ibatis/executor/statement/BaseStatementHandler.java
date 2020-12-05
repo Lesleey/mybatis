@@ -44,19 +44,31 @@ import org.apache.ibatis.type.TypeHandlerRegistry;
  * 
  */
 public abstract class BaseStatementHandler implements StatementHandler {
-  //配置对象
+  /**
+   *  mybatis 的全局配置类
+   * */
   protected final Configuration configuration;
-  //对象工厂。用来创建对象用的
+
+  /**
+   *  对象工厂： 用于初始化对象
+   * */
   protected final ObjectFactory objectFactory;
-  //类型处理注册器，typeHandler用来处理jdbcType <-> javaType 之间的映射
+
+  /**
+   * 类型处理注册器
+   * */
   protected final TypeHandlerRegistry typeHandlerRegistry;
-  //结果集处理器，用来封装返回的结果集的
+
+  /**
+   * 结果集处理器： 用于处理返回的结果集
+   * */
   protected final ResultSetHandler resultSetHandler;
-  //参数处理器，用来给sql语句设置参数的
+
+  /**
+   *  参数处理器： 用于设置参数
+   * */
   protected final ParameterHandler parameterHandler;
-  //执行器
   protected final Executor executor;
-  //sql的映射语句
   protected final MappedStatement mappedStatement;
   protected final RowBounds rowBounds;
 
@@ -71,6 +83,7 @@ public abstract class BaseStatementHandler implements StatementHandler {
     this.typeHandlerRegistry = configuration.getTypeHandlerRegistry();
     this.objectFactory = configuration.getObjectFactory();
 
+    //1.  如果该语句有主键生成器，调用其回调方法 processBefore()
     if (boundSql == null) { // issue #435, get the key before calculating the statement
       generateKeys(parameterObject);
       boundSql = mappedStatement.getBoundSql(parameterObject);
@@ -78,9 +91,9 @@ public abstract class BaseStatementHandler implements StatementHandler {
 
     this.boundSql = boundSql;
 
-    //生成parameterHandler
+    //2. 生成parameterHandler， 给sql语句设置参数
     this.parameterHandler = configuration.newParameterHandler(mappedStatement, parameterObject, boundSql);
-    //生成resultSetHandler
+    //3. 生成resultSetHandler, 返回封装的结果集
     this.resultSetHandler = configuration.newResultSetHandler(executor, mappedStatement, rowBounds, parameterHandler, resultHandler, boundSql);
   }
 
@@ -94,17 +107,20 @@ public abstract class BaseStatementHandler implements StatementHandler {
     return parameterHandler;
   }
 
-  //准备语句，实例化statment,设置超时时间，设置读取条数
+
+  /**
+   *  初始化 statement 对象，并设置基本的属性
+   * */
   @Override
   public Statement prepare(Connection connection) throws SQLException {
     ErrorContext.instance().sql(boundSql.getSql());
     Statement statement = null;
     try {
-      //实例化Statement
+      //1. 实例化Statement
       statement = instantiateStatement(connection);
-      //设置超时
+      //2. 设置超时
       setStatementTimeout(statement);
-      //设置读取条数
+      //3. 设置读取条数
       setFetchSize(statement);
       return statement;
     } catch (SQLException e) {
@@ -116,10 +132,14 @@ public abstract class BaseStatementHandler implements StatementHandler {
     }
   }
 
-  //如何实例化Statement，交给子类做，三个子类有不同的做法
+  /**
+   *  通过模板方法模式交给子类实现具体的实现
+   * */
   protected abstract Statement instantiateStatement(Connection connection) throws SQLException;
 
-  //设置超时,其实就是调用Statement.setQueryTimeout
+  /**
+   *  设置语句的超时时间，如果数据库驱动等待语句执行的时间超过该限制，将会抛出 SQLTimeoutException
+   * */
   protected void setStatementTimeout(Statement stmt) throws SQLException {
     Integer timeout = mappedStatement.getTimeout();
     Integer defaultTimeout = configuration.getDefaultStatementTimeout();
@@ -130,7 +150,9 @@ public abstract class BaseStatementHandler implements StatementHandler {
     }
   }
 
-  //设置读取条数,其实就是调用Statement.setFetchSize
+  /**
+   *  设置执行一次查询，jdbc从数据库游标中检索的结果记录数
+   * */
   protected void setFetchSize(Statement stmt) throws SQLException {
     Integer fetchSize = mappedStatement.getFetchSize();
     if (fetchSize != null) {
@@ -149,7 +171,9 @@ public abstract class BaseStatementHandler implements StatementHandler {
     }
   }
 
-  //给参数设置值，这里是为了获取自增的主键
+  /**
+   * 在准备语句并执行之前，先执行键生成器的回调方法
+   * */
   protected void generateKeys(Object parameter) {
     KeyGenerator keyGenerator = mappedStatement.getKeyGenerator();
     ErrorContext.instance().store();

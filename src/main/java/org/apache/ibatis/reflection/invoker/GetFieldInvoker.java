@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
  * @author Clinton Begin
  */
 /**
- * getter调用者
+ * getter调用者: 用于获取某个对象的某个字段的值
  * 
  */
 public class GetFieldInvoker implements Invoker {
@@ -32,7 +32,6 @@ public class GetFieldInvoker implements Invoker {
     this.field = field;
   }
 
-  //就是调用Field.get
   @Override
   public Object invoke(Object target, Object[] args) throws IllegalAccessException, InvocationTargetException {
     return field.get(target);

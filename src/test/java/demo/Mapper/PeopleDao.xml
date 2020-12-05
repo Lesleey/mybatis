@@ -3,8 +3,31 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="demo.Mapper.PeopleDao" >
-    <select id="queryAll" resultType="demo.entity.People">
-        select * from people
+    <resultMap id="dept" type="demo.entity.Dept">
+        <result column="deptname" property="deptName"></result>
+        <collection property="peoples" ofType="demo.entity.People">
+            <result column="note" property="note"/>
+        </collection>
+    </resultMap>
+    <select id="queryAll" resultMap="dept">
+        select * from dept d
+        left join people p
+        on d.id = p.deptId
     </select>
+
+    <select id="getAllUsers" resultMap="results" ><!-- -->
+        select * from users order by id
+    </select>
+
+    <resultMap type="demo.entity.User" id="results">
+        <id column="id" property="id"/>
+        <result property="name" column="name"/>
+        <collection property="groups" ofType="string">
+            <result column="group_id"/>
+        </collection>
+        <collection property="roles" ofType="string">
+            <result column="rol_id"/>
+        </collection>
+    </resultMap>
 
 </mapper>

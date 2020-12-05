@@ -30,17 +30,27 @@ import org.apache.ibatis.session.SqlSession;
  * @author Eduardo Macarron
  */
 /**
- * 映射器代理，代理模式
+ * dao对应的代理类： 在调用接口的方法时增加了实际的功能（执行对应的sql语句）
  *
  */
 public class MapperProxy<T> implements InvocationHandler, Serializable {
 
   private static final long serialVersionUID = -6424540398559729838L;
-  //当前代理类的sqlSession
+
+  /**
+   * 当前的sql会话
+   * */
   private final SqlSession sqlSession;
-  //代理的dao的类对象
+
+  /**
+   *  dao 接口对应的类对象
+   * */
   private final Class<T> mapperInterface;
-  //dao方法，对应的代理方法
+
+  /**
+   *  key: dao接口对应的方法对象
+   *  value: 代理方法
+   * */
   private final Map<Method, MapperMethod> methodCache;
 
   public MapperProxy(SqlSession sqlSession, Class<T> mapperInterface, Map<Method, MapperMethod> methodCache) {
@@ -49,10 +59,12 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
     this.methodCache = methodCache;
   }
 
+  /**
+   *  调用dao接口对应的方法
+   * */
   @Override
   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-    //代理以后，所有Mapper的方法调用时，都会调用这个invoke方法
-    //该接口所有的方法，都不一定都需要动态执行，如果是object的方法，不需要添加额外的功能，直接执行，如果是自定义的方法，需要通过sqlSession执行
+    //1. 如果调用的方法的声明对象是 Object类，则直接执行
     if (Object.class.equals(method.getDeclaringClass())) {
       try {
         return method.invoke(this, args);
@@ -60,17 +72,19 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
         throw ExceptionUtil.unwrapThrowable(t);
       }
     }
-    //这里优化了，去缓存中找MapperMethod
+    //2. 如果是dao接口声明的方法，则首先获取代理方法
     final MapperMethod mapperMethod = cachedMapperMethod(method);
-    //执行
+    //3. 执行流程
     return mapperMethod.execute(sqlSession, args);
   }
 
-  //去缓存中找MapperMethod
+  /**
+   * @param method dao 接口声明的方法对象
+   *    返回对应的代理方法对象
+   * */
   private MapperMethod cachedMapperMethod(Method method) {
     MapperMethod mapperMethod = methodCache.get(method);
     if (mapperMethod == null) {
-      //找不到才去new
       mapperMethod = new MapperMethod(mapperInterface, method, sqlSession.getConfiguration());
       methodCache.put(method, mapperMethod);
     }

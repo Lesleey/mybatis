@@ -26,10 +26,10 @@ import java.util.Properties;
  */
 public interface Interceptor {
 
-  //拦截
+  // 增强方法
   Object intercept(Invocation invocation) throws Throwable;
 
-  //插入
+  // 返回动态代理对象
   Object plugin(Object target);
 
   //设置属性

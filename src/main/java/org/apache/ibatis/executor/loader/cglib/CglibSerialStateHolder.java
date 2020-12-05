@@ -43,6 +43,9 @@ class CglibSerialStateHolder extends AbstractSerialStateHolder {
     super(userBean, unloadedProperties, objectFactory, constructorArgTypes, constructorArgs);
   }
 
+  /**
+   *  该方法的返回值作为 懒加载代理对象序列化的结果
+   * */
   @Override
   protected Object createDeserializationProxy(Object target, Map<String, ResultLoaderMap.LoadPair> unloadedProperties, ObjectFactory objectFactory,
           List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {

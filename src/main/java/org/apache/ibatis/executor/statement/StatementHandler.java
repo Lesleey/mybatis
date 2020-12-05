@@ -29,8 +29,7 @@ import org.apache.ibatis.session.ResultHandler;
  * @author Clinton Begin
  */
 /**
- * 语句处理器
- * 
+ * 语句处理器： 用于构建 Statement 并执行
  */
 public interface StatementHandler {
 
@@ -38,7 +37,7 @@ public interface StatementHandler {
   Statement prepare(Connection connection)
       throws SQLException;
 
-  //参数化
+  //设置参数
   void parameterize(Statement statement)
       throws SQLException;
 

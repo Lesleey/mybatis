@@ -38,7 +38,8 @@ import org.apache.ibatis.transaction.Transaction;
  * @author Eduardo Macarron
  */
 /**
- * 二级缓存执行器
+ *  缓存执行器： 如果开启了二级缓存，则会通过装饰者模式为内部指定的执行器增加缓存功能
+ *
  */
 public class CachingExecutor implements Executor {
 
@@ -74,10 +75,14 @@ public class CachingExecutor implements Executor {
     return delegate.isClosed();
   }
 
+  /**
+   *  执行 delete | insert | update 语句
+   * */
   @Override
   public int update(MappedStatement ms, Object parameterObject) throws SQLException {
-	//刷新缓存完再update
+    //1. 清空缓存
     flushCacheIfRequired(ms);
+    //2. 真正的执行过程
     return delegate.update(ms, parameterObject);
   }
 
@@ -89,16 +94,20 @@ public class CachingExecutor implements Executor {
     return query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);
   }
 
-  //被ResultLoader.selectList调用
+  /**
+   *  执行 select 语句
+   * */
   @Override
   public <E> List<E> query(MappedStatement ms, Object parameterObject, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql)
       throws SQLException {
     Cache cache = ms.getCache();
-    //默认情况下是没有开启缓存的(二级缓存).要开启二级缓存,你需要在你的 SQL 映射文件中添加一行: <cache/>
-    //简单的说，就是先查CacheKey，查不到再委托给实际的执行器去查
+    //1. 如果指定了二级缓存
     if (cache != null) {
+      //1.1 如果指定了刷新缓存，则清空 ms 对应的缓存
       flushCacheIfRequired(ms);
+      //1.2 如果指定了使用缓存且结果处理器为空，才会使用二级缓存
       if (ms.isUseCache() && resultHandler == null) {
+        // 注意： 不支持 sql 函数的输出参数
         ensureNoOutParams(ms, parameterObject, boundSql);
         @SuppressWarnings("unchecked")
         List<E> list = (List<E>) tcm.getObject(cache, key);
@@ -109,6 +118,7 @@ public class CachingExecutor implements Executor {
         return list;
       }
     }
+    ///2. 如果没有指定，则调用被装饰者执行查询
     return delegate.<E> query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);
   }
 
